@@ -36,9 +36,10 @@ namespace Neurotoxin.Norm
             {
                 if (storedColumns != null && !storedColumns.SequenceEqual(actualColumns))
                 {
-                    var tmpTable = new TableAttribute(table.Name + "_tmp", table.Schema);
-                    RenameTable(table, tmpTable);
-                    CreateTable(table, actualColumns);
+                    //TODO: temporary commented out
+                    //var tmpTable = new TableAttribute(table.Name + "_tmp", table.Schema);
+                    //RenameTable(table, tmpTable);
+                    //CreateTable(table, actualColumns);
                     //TODO: copy values
                 }
             }

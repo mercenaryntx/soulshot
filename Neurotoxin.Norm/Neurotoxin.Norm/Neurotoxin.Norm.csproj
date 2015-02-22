@@ -78,7 +78,12 @@
     <Compile Include="DbContext.cs" />
     <Compile Include="DbSet.cs" />
     <Compile Include="ColumnInfo.cs" />
-    <Compile Include="Extensions\QueryableExtensions.cs" />
+    <Compile Include="DynamicProxy.cs" />
+    <Compile Include="EntityKey.cs" />
+    <Compile Include="EntityState.cs" />
+    <Compile Include="Extensions\ILGeneratorExtensions.cs" />
+    <Compile Include="Extensions\TypeBuilderExtensions.cs" />
+    <Compile Include="IProxy.cs" />
     <Compile Include="MssqlDataEngine.cs" />
     <Compile Include="Extensions\MemberInfoExtensions.cs" />
     <Compile Include="Extensions\SqlConnectionExtensions.cs" />
@@ -97,6 +102,7 @@
     <Compile Include="TypeSystem.cs" />
     <Compile Include="Query\LinqToSqlVisitor.cs" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

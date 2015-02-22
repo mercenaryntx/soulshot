@@ -21,15 +21,16 @@ namespace Neurotoxin.Norm.Query
 
         public IQueryable CreateQuery(Expression expression)
         {
-            var elementType = TypeSystem.GetElementType(expression.Type);
-            try
-            {
-                return (IQueryable)Activator.CreateInstance(typeof(DbSet<>).MakeGenericType(elementType), new object[] { this, expression });
-            }
-            catch (System.Reflection.TargetInvocationException tie)
-            {
-                throw tie.InnerException;
-            }
+            //var elementType = TypeSystem.GetElementType(expression.Type);
+            //try
+            //{
+            //    return (IQueryable)Activator.CreateInstance(typeof(DbSet<>).MakeGenericType(elementType), new object[] { this, expression });
+            //}
+            //catch (System.Reflection.TargetInvocationException tie)
+            //{
+            //    throw tie.InnerException;
+            //}
+            throw new NotImplementedException();
         }
 
         public IQueryable<TElement> CreateQuery<TElement>(Expression expression)
@@ -40,7 +41,6 @@ namespace Neurotoxin.Norm.Query
         public object Execute(Expression expression)
         {
             return ExecuteImp(expression, null);
-            //return SqlQueryContext.Execute(expression, false);
         }
 
         public TResult Execute<TResult>(Expression expression)

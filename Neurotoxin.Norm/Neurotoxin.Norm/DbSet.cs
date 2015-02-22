@@ -1,29 +1,23 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Security.Principal;
 using Neurotoxin.Norm.Annotations;
 using Neurotoxin.Norm.Extensions;
 using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
 {
-    public class DbSet<TEntity> : IDbSet, IQueryable<TEntity>
-        //, IList<TEntity>
+    public class DbSet<TEntity> : IDbSet, IQueryable<TEntity> //where TEntity : class
     {
         private TableAttribute _table;
         private IDataEngine _dataEngine;
+        private List<ColumnInfo> _keyColumns;
+        private readonly List<TEntity> _cachedEntities = new List<TEntity>();
 
-        private List<TEntity> _cachedEntities;
-
-        protected List<TEntity> CachedEntities
-        {
-            get { return _cachedEntities ?? (_cachedEntities = new List<TEntity>()); }
-        } 
-
-        public List<ColumnInfo> Columns { get; private set; } 
+        public List<ColumnInfo> Columns { get; private set; }
         public bool TableUpdated { get; private set; }
 
         internal DbSet(IDataEngine dataEngine)
@@ -40,8 +34,7 @@ namespace Neurotoxin.Norm
         {
             if (provider == null) throw new ArgumentNullException("provider");
             if (expression == null) throw new ArgumentNullException("expression");
-            if (!typeof(IQueryable<TEntity>).IsAssignableFrom(expression.Type))
-                throw new ArgumentOutOfRangeException("expression");
+            if (!typeof(IQueryable<TEntity>).IsAssignableFrom(expression.Type)) throw new ArgumentOutOfRangeException("expression");
 
             _dataEngine = provider.DataEngine;
             _table = provider.Table;
@@ -55,13 +48,29 @@ namespace Neurotoxin.Norm
             _table = table;
             _dataEngine = dataEngine;
             Columns = _dataEngine.UpdateTable<TEntity>(_table, columns);
+            _keyColumns = Columns.Where(c => c.IsIdentity).ToList();
             Provider = new SqlQueryProvider(dataEngine, table, Columns);
             Expression = Expression.Constant(this);
         }
 
+        public TEntity Add(TEntity entity, EntityState state = EntityState.Added)
+        {
+            var proxy = entity as IProxy ?? (IProxy)DynamicProxy.Instance.Wrap(entity);
+            //var key = GetKey(entity);
+            entity = (TEntity) proxy;
+            _cachedEntities.Add(entity);
+            proxy.State = state;
+            return entity;
+        }
+
+        public void Remove(Func<TEntity, bool> expression)
+        {
+            //throw new NotImplementedException();
+        }
+
         public void SaveChanges()
         {
-            
+            Debugger.Break();
         }
 
         #region IQueryable members
@@ -76,7 +85,12 @@ namespace Neurotoxin.Norm
 
         public IEnumerator<TEntity> GetEnumerator()
         {
-            return (Provider.Execute<IEnumerable<TEntity>>(Expression)).GetEnumerator();
+            var resultSet = Provider.Execute<List<TEntity>>(Expression);
+            foreach (var entity in resultSet)
+            {
+                Add(entity, EntityState.Unchanged);
+            }
+            return resultSet.GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()
@@ -86,64 +100,10 @@ namespace Neurotoxin.Norm
 
         #endregion
 
-        #region IList members
-
-        public void Add(TEntity item)
+        private EntityKey GetKey(TEntity entity)
         {
-            CachedEntities.Add(item);
+            return new EntityKey(_keyColumns.Select(c => c.BaseType.GetProperty(c.PropertyName).GetValue(entity, null)));
         }
 
-        public void Clear()
-        {
-            CachedEntities.Clear();
-        }
-
-        public bool Contains(TEntity item)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void CopyTo(TEntity[] array, int arrayIndex)
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool Remove(TEntity item)
-        {
-            throw new NotImplementedException();
-        }
-
-        public int Count
-        {
-            get { throw new NotImplementedException(); }
-        }
-
-        public bool IsReadOnly
-        {
-            get { throw new NotImplementedException(); }
-        }
-
-        public int IndexOf(TEntity item)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Insert(int index, TEntity item)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void RemoveAt(int index)
-        {
-            throw new NotImplementedException();
-        }
-
-        public TEntity this[int index]
-        {
-            get { throw new NotImplementedException(); }
-            set { throw new NotImplementedException(); }
-        }
-
-        #endregion
     }
 }

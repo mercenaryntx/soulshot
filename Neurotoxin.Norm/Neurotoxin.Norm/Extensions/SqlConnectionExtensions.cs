@@ -35,6 +35,7 @@ namespace Neurotoxin.Norm.Extensions
             var listType = typeof(List<>).MakeGenericType(type);
             var addMethod = listType.GetMethod("Add");
             var list = Activator.CreateInstance(listType);
+            var proxyType = DynamicProxy.Instance.GetProxyType(type);
 
             using (var cmd = new SqlCommand(command, connection))
             {
@@ -42,7 +43,7 @@ namespace Neurotoxin.Norm.Extensions
 
                 while (reader.Read())
                 {
-                    var instance = Activator.CreateInstance(type);
+                    var instance = Activator.CreateInstance(proxyType);
                     var columns = new HashSet<string>();
                     for(int i=0;i<reader.FieldCount;i++)
                     {

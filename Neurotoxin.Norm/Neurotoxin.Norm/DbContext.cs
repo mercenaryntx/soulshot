@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Neurotoxin.Norm.Annotations;
@@ -18,29 +19,33 @@ namespace Neurotoxin.Norm
             var iDbSet = typeof(IDbSet);
             foreach (var pi in GetType().GetProperties().Where(pi => iDbSet.IsAssignableFrom(pi.PropertyType)))
             {
-                var table = pi.GetAttribute<TableAttribute>() ??
-                            pi.PropertyType.GetGenericArguments().First().GetAttribute<TableAttribute>() ??
-                            new TableAttribute(pi.Name);
-                var c = migrationHistory.Where(e => e.TableName == table.Name).Where(e => e.TableSchema == table.Schema).Where(e => e.IsNullable).Select(e => e.ColumnName);
-                var columns = c.ToList();
-                //var columns = migrationHistory.Where(e => e.TableName == table.Name && e.TableSchema == table.Schema).ToList();
-                var ctor = pi.PropertyType.GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, null,
-                                                          new [] {table.GetType(), columns.GetType(), typeof (IDataEngine)}, null);
-                var dbSet = (IDbSet)ctor.Invoke(new object[] {table, columns, _dataEngine});
-
-                //var dbSet = (IDbSet)Activator.CreateInstance(pi.PropertyType, BindingFlags.NonPublic | BindingFlags.Instance, table, columns, _dataEngine);
-                //if (dbSet.Columns != columns)
-                //{
-                //    migrationHistory.Remove(e => e.TableName == table.Name && e.TableSchema == table.Schema);
-                //    foreach (var column in dbSet.Columns)
-                //    {
-                //        //TODO: it should be an IList
-                //        migrationHistory.Add(column);
-                //    }
-                //    migrationHistory.SaveChanges();
-                //}
+                var table = GetTableDefinition(pi);
+                var columns = migrationHistory.Where(e => e.TableName == table.Name && e.TableSchema == table.Schema).ToList();
+                var dbSet = CreateDbSet(pi, table, columns);
+                if (dbSet.Columns != columns)
+                {
+                    migrationHistory.Remove(e => e.TableName == table.Name && e.TableSchema == table.Schema);
+                    foreach (var column in dbSet.Columns)
+                    {
+                        var c = migrationHistory.Add(column);
+                    }
+                    migrationHistory.SaveChanges();
+                }
                 pi.SetValue(this, dbSet);
             }
+        }
+
+        private TableAttribute GetTableDefinition(PropertyInfo pi)
+        {
+            return pi.GetAttribute<TableAttribute>() ??
+                   pi.PropertyType.GetGenericArguments().First().GetAttribute<TableAttribute>() ??
+                   new TableAttribute(pi.Name);
+        }
+
+        private IDbSet CreateDbSet(PropertyInfo pi, TableAttribute table, List<ColumnInfo> columns)
+        {
+            var ctor = pi.PropertyType.GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { table.GetType(), columns.GetType(), typeof(IDataEngine) }, null);
+            return (IDbSet)ctor.Invoke(new object[] { table, columns, _dataEngine });
         }
 
         public void Dispose()

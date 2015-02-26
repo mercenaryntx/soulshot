@@ -70,7 +70,7 @@ namespace Neurotoxin.Norm
 
         public void SaveChanges()
         {
-            Debugger.Break();
+            _dataEngine.CommitChanges(_cachedEntities, _table, Columns);
         }
 
         #region IQueryable members

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Diagnostics;
+using System.Dynamic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -77,6 +78,81 @@ namespace Neurotoxin.Norm
         public override void RenameTable(TableAttribute oldName, TableAttribute newName)
         {
             //throw new NotImplementedException();
+        }
+
+        public override void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns)
+        {
+            using (var transaction = _connection.BeginTransaction())
+            {
+                try
+                {
+                    foreach (IProxy entity in entities)
+                    {
+                        switch (entity.State)
+                        {
+                            case EntityState.Added:
+                                Insert(entity, table, columns, transaction);
+                                break;
+                            case EntityState.Changed:
+                                Update(entity, table, columns, transaction);
+                                break;
+                            case EntityState.Deleted:
+                                Delete(entity, table, columns, transaction);
+                                break;
+                        }
+                    }
+                    transaction.Commit();
+                }
+                catch (Exception)
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+        }
+
+        public override string GetLiteral(object value)
+        {
+            //TODO: 
+            var isString = value is string;
+            if (isString) return "N'" + value + "'";
+            return value.ToString();
+        }
+
+        private void Insert(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns, SqlTransaction transaction = null)
+        {
+            var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            var columnNames = new StringBuilder();
+            var values = new StringBuilder();
+            foreach (var column in columns.Where(c => !c.IsIdentity))
+            {
+                if (columnNames.Length != 0)
+                {
+                    columnNames.Append(",");
+                    values.Append(",");
+                }
+                columnNames.Append(column.ColumnName);
+                values.Append(GetLiteral(column.BaseType.GetProperty(column.PropertyName).GetValue(entity)));
+            }
+            cmd.CommandText = string.Format("INSERT INTO {0} ({1}) VALUES ({2})", table.FullNameWithBrackets, columnNames, values);
+            cmd.ExecuteNonQuery();
+        }
+
+        private void Update(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns, SqlTransaction transaction = null)
+        {
+            var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            foreach (var tpp in entity.DirtyProperties)
+            {
+                var column = columns.First(c => c.BaseType == tpp.Type && c.PropertyName == tpp.Property);
+                throw new NotImplementedException();
+            }            
+        }
+
+        private void Delete(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns, SqlTransaction transaction = null)
+        {
+            throw new NotImplementedException();
         }
 
         public override IEnumerable Execute(Type elementType, Expression expression)

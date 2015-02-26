@@ -103,12 +103,8 @@ namespace Neurotoxin.Norm.Query
 
         protected override Expression VisitConstant(ConstantExpression node)
         {
-            //TODO: proper mapping
-            var isString = node.Value is string;
             _commandBuilder.Append(" ");
-            if (isString) _commandBuilder.Append("N'");
-            _commandBuilder.Append(node.Value);
-            if (isString) _commandBuilder.Append("'");
+            _commandBuilder.Append(_dataEngine.GetLiteral(node.Value));
             return node;
         }
 

@@ -10,6 +10,7 @@ namespace Neurotoxin.Norm
 {
     internal class DynamicProxy
     {
+        private readonly AssemblyBuilder _assemblyBuilder;
         private readonly ModuleBuilder _moduleBuilder;
         private readonly Dictionary<Type, Type> _cache = new Dictionary<Type, Type>(); 
 
@@ -22,14 +23,15 @@ namespace Neurotoxin.Norm
         internal DynamicProxy(string assemblyName)
         {
             var name = new AssemblyName(assemblyName);
-            var assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndCollect);
-            _moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName, string.Format("{0}.dll", assemblyName));
+            _assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndSave);
+            _moduleBuilder = _assemblyBuilder.DefineDynamicModule(assemblyName, string.Format("{0}.dll", assemblyName));
         }
 
         internal Type GetProxyType(Type baseType)
         {
             if (_cache.ContainsKey(baseType)) return _cache[baseType];
             var typeBuilder = CreateTypeBuilder(baseType);
+            //TODO: property
             var dirtyProperties = typeBuilder.CreateField<HashSet<string>>("_dirtyProperties");
             var state = typeBuilder.CreateProperty<EntityState>("State", f => StateGetter(typeBuilder, f, dirtyProperties), f => StateSetter(typeBuilder, f));
 
@@ -43,10 +45,13 @@ namespace Neurotoxin.Norm
             typeBuilder.CreateDefaultConstructor(il =>
             {
                 il.SetFieldDefault(dirtyProperties);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Call, baseType.GetConstructor(Type.EmptyTypes));
                 il.Emit(OpCodes.Ret);
             });
             var proxyType = typeBuilder.CreateType();
             _cache[baseType] = proxyType;
+            _assemblyBuilder.Save("Foobar.dll");
             return proxyType;
         }
 
@@ -132,16 +137,18 @@ namespace Neurotoxin.Norm
 
             var changed = il.DefineLabel();
             var endOfBlock = il.DefineLabel();
+            var l9 = il.DefineLabel();
 
             //Generates the code of return _state == EntityState.Unchanged && _dirtyProperties.Count > 0 ? EntityState.Changed : _state;
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldfld, field);
-            il.Emit(OpCodes.Brtrue, endOfBlock);
+            il.Emit(OpCodes.Brtrue, l9);
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldfld, dirtyProperties);
             il.Emit(OpCodes.Callvirt, dirtyProperties.FieldType.GetMethod("get_Count"));
             il.Emit(OpCodes.Ldc_I4_0);
             il.Emit(OpCodes.Bgt_S, changed);
+            il.MarkLabel(l9);
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldfld, field);
             il.Emit(OpCodes.Br_S, endOfBlock);

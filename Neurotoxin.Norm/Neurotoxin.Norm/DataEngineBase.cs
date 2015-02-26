@@ -59,6 +59,8 @@ namespace Neurotoxin.Norm
             return (IEnumerable<TEntity>)Execute(typeof(TEntity), expression);
         }
 
+        public abstract void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns);
+        public abstract string GetLiteral(object value);
         public abstract IEnumerable Execute(Type elementType, Expression expression);
         public abstract void Dispose();
     }

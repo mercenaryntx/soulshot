@@ -20,5 +20,7 @@ namespace Neurotoxin.Norm
         void RenameTable(TableAttribute oldName, TableAttribute newName);
         IEnumerable Execute(Type elementType, Expression expression);
         IEnumerable<TEntity> Execute<TEntity>(Expression expression);
+        void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns);
+        string GetLiteral(object value);
     }
 }

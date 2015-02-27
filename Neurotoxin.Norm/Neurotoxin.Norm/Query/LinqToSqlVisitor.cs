@@ -35,7 +35,7 @@ namespace Neurotoxin.Norm.Query
                 from = from == null ? expression : new ListingExpression(from, expression);
             }
 
-            if (_select == null) _select = new SelectExpression(Expression.Constant("*"));
+            if (_select == null) _select = new SelectExpression(new AsteriskExpression());
             _select.From = from;
             if (_where != null) _select.Where = _where;
 

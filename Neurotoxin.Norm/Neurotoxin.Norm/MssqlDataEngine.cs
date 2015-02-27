@@ -113,10 +113,13 @@ namespace Neurotoxin.Norm
 
         public override string GetLiteral(object value)
         {
-            //TODO: 
-            var isString = value is string;
-            if (isString) return "N'" + value + "'";
-            return value.ToString();
+            //TODO: proper mapping
+            var type = value.GetType();
+            if (type.IsClass) return "N'" + value + "'";
+            int? intValue = null;
+            if (type.IsEnum) intValue = (int)value;
+            if (type == typeof (Boolean)) intValue = ((bool) value) ? 1 : 0;
+            return intValue.HasValue ? intValue.ToString() : value.ToString();
         }
 
         private void Insert(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns, SqlTransaction transaction = null)
@@ -132,7 +135,9 @@ namespace Neurotoxin.Norm
                     columnNames.Append(",");
                     values.Append(",");
                 }
+                columnNames.Append("[");
                 columnNames.Append(column.ColumnName);
+                columnNames.Append("]");
                 values.Append(GetLiteral(column.BaseType.GetProperty(column.PropertyName).GetValue(entity)));
             }
             cmd.CommandText = string.Format("INSERT INTO {0} ({1}) VALUES ({2})", table.FullNameWithBrackets, columnNames, values);
@@ -143,11 +148,24 @@ namespace Neurotoxin.Norm
         {
             var cmd = _connection.CreateCommand();
             cmd.Transaction = transaction;
-            foreach (var tpp in entity.DirtyProperties)
-            {
-                var column = columns.First(c => c.BaseType == tpp.Type && c.PropertyName == tpp.Property);
-                throw new NotImplementedException();
-            }            
+
+            //TODO: use SqlCommandTextVisitor
+
+            //var setBuilder = new StringBuilder();
+            //foreach (var property in entity.DirtyProperties)
+            //{
+            //    if (setBuilder.Length != 0)
+            //    {
+            //        setBuilder.Append(",");
+            //    }
+            //    var pi = type.GetProperty(property);
+            //    var column = columns.First(c => c.BaseType == pi.DeclaringType && c.PropertyName == property);
+            //    setBuilder.Append("SET ");
+            //    setBuilder.Append(column.ColumnName);
+            //    setBuilder.Append(" = ");
+            //    setBuilder.Append(GetLiteral(pi.GetValue(entity)));
+            //}
+            //cmd.CommandText = string.Format("UPDATE {0} {1} WHERE {2}", table.FullNameWithBrackets, setBuilder, whereBuilder);
         }
 
         private void Delete(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns, SqlTransaction transaction = null)

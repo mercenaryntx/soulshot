@@ -39,6 +39,9 @@ namespace Neurotoxin.Norm.Query
             var tableExpression = node as TableExpression;
             if (tableExpression != null) return VisitTable(tableExpression);
 
+            var asteriskExpression = node as AsteriskExpression;
+            if (asteriskExpression != null) return VisitAsterisk(asteriskExpression);
+
             return base.Visit(node);
         }
 
@@ -90,6 +93,12 @@ namespace Neurotoxin.Norm.Query
         protected virtual Expression VisitTable(TableExpression node)
         {
             _commandBuilder.Append(string.Format(" {0} {1}", node.Table.FullNameWithBrackets, node.Alias));
+            return node;
+        }
+
+        protected virtual Expression VisitAsterisk(AsteriskExpression node)
+        {
+            _commandBuilder.Append("*");
             return node;
         }
 

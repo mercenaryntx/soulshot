@@ -9,7 +9,15 @@ namespace Neurotoxin.Norm.Extensions
         public static void SetFieldDefault(this ILGenerator il, FieldInfo field)
         {
             il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Newobj, field.FieldType.GetConstructor(Type.EmptyTypes));
+            if (field.FieldType.IsClass)
+            {
+                il.Emit(OpCodes.Newobj, field.FieldType.GetConstructor(Type.EmptyTypes));
+            }
+            else
+            {
+                //TODO:
+                il.Emit(OpCodes.Ldc_I4_0);
+            }
             il.Emit(OpCodes.Stfld, field);
 
         }

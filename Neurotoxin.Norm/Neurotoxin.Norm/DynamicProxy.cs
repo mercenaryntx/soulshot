@@ -31,20 +31,20 @@ namespace Neurotoxin.Norm
         {
             if (_cache.ContainsKey(baseType)) return _cache[baseType];
             var typeBuilder = CreateTypeBuilder(baseType);
-            //TODO: property
-            var dirtyProperties = typeBuilder.CreateField<HashSet<string>>("_dirtyProperties");
-            var state = typeBuilder.CreateProperty<EntityState>("State", f => StateGetter(typeBuilder, f, dirtyProperties), f => StateSetter(typeBuilder, f));
+            var dirtyProperties = typeBuilder.CreateProperty<HashSet<string>>("DirtyProperties", f => DirtyPropertiesGetter(typeBuilder, f));
+            var state = typeBuilder.CreateProperty<EntityState>("State", f => StateGetter(typeBuilder, f, dirtyProperties.BackingField), f => StateSetter(typeBuilder, f));
 
             foreach (var property in baseType.GetProperties())
             {
                 var getter = PropertyGetter(typeBuilder, property);
-                var setter = PropertySetter(typeBuilder, property, dirtyProperties);
+                var setter = PropertySetter(typeBuilder, property, dirtyProperties.BackingField);
                 typeBuilder.CreateProperty(property.PropertyType, property.Name, f => getter, f => setter);
             }
 
             typeBuilder.CreateDefaultConstructor(il =>
             {
-                il.SetFieldDefault(dirtyProperties);
+                il.SetFieldDefault(dirtyProperties.BackingField);
+                il.SetFieldDefault(state.BackingField);
                 il.Emit(OpCodes.Ldarg_0);
                 il.Emit(OpCodes.Call, baseType.GetConstructor(Type.EmptyTypes));
                 il.Emit(OpCodes.Ret);
@@ -157,10 +157,6 @@ namespace Neurotoxin.Norm
             il.MarkLabel(endOfBlock);
             il.Emit(OpCodes.Ret);
 
-            //il.Emit(OpCodes.Ldarg_0);
-            //il.Emit(OpCodes.Ldfld, field);
-            //il.Emit(OpCodes.Ret);
-
             return getter;
         }
 
@@ -174,6 +170,20 @@ namespace Neurotoxin.Norm
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Ldarg_1);
             il.Emit(OpCodes.Stfld, field);
+            il.Emit(OpCodes.Ret);
+
+            return setter;
+        }
+
+        private MethodBuilder DirtyPropertiesGetter(TypeBuilder typeBuilder, FieldBuilder field)
+        {
+            var setter = typeBuilder.DefineMethod("get_DirtyProperties", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(HashSet<string>), Type.EmptyTypes);
+            typeBuilder.DefineMethodOverride(setter, typeof(IProxy).GetMethod("get_DirtyProperties"));
+            var il = setter.GetILGenerator();
+
+            //Generates the code of return this._dirtyProperties;
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldfld, field);
             il.Emit(OpCodes.Ret);
 
             return setter;

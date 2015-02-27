@@ -91,6 +91,8 @@
     <Compile Include="IDataEngine.cs" />
     <Compile Include="IDbSet.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="PropertyCollection.cs" />
+    <Compile Include="Query\AsteriskExpression.cs" />
     <Compile Include="Query\ListingExpression.cs" />
     <Compile Include="Query\SelectExpression.cs" />
     <Compile Include="Query\SqlCommandTextVisitor.cs" />
@@ -99,6 +101,7 @@
     <Compile Include="Query\OperatorType.cs" />
     <Compile Include="Query\SqlQueryProvider.cs" />
     <Compile Include="Query\WhereExpression.cs" />
+    <Compile Include="TypePropertyPair.cs" />
     <Compile Include="TypeSystem.cs" />
     <Compile Include="Query\LinqToSqlVisitor.cs" />
   </ItemGroup>

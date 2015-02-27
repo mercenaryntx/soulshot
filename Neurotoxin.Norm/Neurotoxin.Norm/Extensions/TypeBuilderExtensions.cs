@@ -19,12 +19,12 @@ namespace Neurotoxin.Norm.Extensions
             return typeBuilder.DefineField(name, fieldType, FieldAttributes.Private);
         }
 
-        public static PropertyBuilder CreateProperty<T>(this TypeBuilder typeBuilder, string name, Func<FieldBuilder, MethodBuilder> getter, Func<FieldBuilder, MethodBuilder> setter, bool createBackingField = true)
+        public static PropertyFieldPair CreateProperty<T>(this TypeBuilder typeBuilder, string name, Func<FieldBuilder, MethodBuilder> getter = null, Func<FieldBuilder, MethodBuilder> setter = null, bool createBackingField = true)
         {
             return CreateProperty(typeBuilder, typeof(T), name, getter, setter, createBackingField);
         }
 
-        public static PropertyBuilder CreateProperty(this TypeBuilder typeBuilder, Type propertyType, string name, Func<FieldBuilder, MethodBuilder> getter, Func<FieldBuilder, MethodBuilder> setter, bool createBackingField = true)
+        public static PropertyFieldPair CreateProperty(this TypeBuilder typeBuilder, Type propertyType, string name, Func<FieldBuilder, MethodBuilder> getter = null, Func<FieldBuilder, MethodBuilder> setter = null, bool createBackingField = true)
         {
             FieldBuilder backingField = null;
             if (createBackingField)
@@ -35,11 +35,19 @@ namespace Neurotoxin.Norm.Extensions
                 backingField = CreateField(typeBuilder, propertyType, fieldName.ToString());
             }
             var propertyBuilder = typeBuilder.DefineProperty(name, PropertyAttributes.None, CallingConventions.Any, propertyType, Type.EmptyTypes);
-            var getMethod = getter.Invoke(backingField);
-            if (getMethod != null) propertyBuilder.SetGetMethod(getMethod);
-            var setMethod = setter.Invoke(backingField);
-            if (setMethod != null) propertyBuilder.SetSetMethod(setMethod);
-            return propertyBuilder;
+
+            if (getter != null)
+            {
+                var getMethod = getter.Invoke(backingField);
+                if (getMethod != null) propertyBuilder.SetGetMethod(getMethod);
+            }
+
+            if (setter != null)
+            {
+                var setMethod = setter.Invoke(backingField);
+                if (setMethod != null) propertyBuilder.SetSetMethod(setMethod);
+            }
+            return new PropertyFieldPair(propertyBuilder, backingField);
         }
 
         public static ConstructorBuilder CreateDefaultConstructor(this TypeBuilder typeBuilder, Action<ILGenerator> setConstructorBody)

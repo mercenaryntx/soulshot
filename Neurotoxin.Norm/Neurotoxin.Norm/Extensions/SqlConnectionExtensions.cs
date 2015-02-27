@@ -52,7 +52,25 @@ namespace Neurotoxin.Norm.Extensions
 
                     foreach (var pi in properties)
                     {
-                        if (columns.Contains(pi.Name)) pi.SetValue(instance, reader[pi.Name].ToString());
+                        if (columns.Contains(pi.Name) && pi.CanWrite)
+                        {
+                            var stringValue = reader[pi.Name].ToString();
+                            object value = null;
+                            //TODO:
+                            if (pi.PropertyType == typeof(Type))
+                            {
+                                value = Type.GetType(stringValue);
+                            }
+                            else if (pi.PropertyType == typeof (Boolean))
+                            {
+                                value = stringValue == "1";
+                            }
+                            else
+                            {
+                                value = stringValue;
+                            }
+                            pi.SetValue(instance, value);
+                        }
                     }
                     addMethod.Invoke(list, new [] {instance});
                 }

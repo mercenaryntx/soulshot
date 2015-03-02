@@ -14,19 +14,20 @@ namespace Neurotoxin.Norm.Query
         private Expression _where;
 
         private readonly TableAttribute _table;
-        private readonly List<ColumnInfo> _columnMapping; 
+        private readonly List<ColumnInfo> _columnMapping;
+        private readonly Type _targetExpression;
 
         private readonly Dictionary<Type, string> _aliases = new Dictionary<Type, string>();
 
-        public LinqToSqlVisitor(TableAttribute table, List<ColumnInfo> columnMapping)
+        public LinqToSqlVisitor(TableAttribute table, List<ColumnInfo> columnMapping, Type targetExpression)
         {
             _table = table;
             _columnMapping = columnMapping;
+            _targetExpression = targetExpression;
         }
 
-        public Expression GetResult()
+        public SqlExpression GetResult()
         {
-            //TODO: support other result types
             Expression from = null;
             foreach (var a in _aliases)
             {
@@ -35,11 +36,36 @@ namespace Neurotoxin.Norm.Query
                 from = from == null ? expression : new ListingExpression(from, expression);
             }
 
-            if (_select == null) _select = new SelectExpression(new AsteriskExpression());
-            _select.From = from;
-            if (_where != null) _select.Where = _where;
+            if (_targetExpression == typeof(SelectExpression))
+            {
+                var select = _select ?? new SelectExpression(new AsteriskExpression());
+                select.From = from;
+                select.Where = _where;
+                return select;
+            }
+            if (_targetExpression == typeof(DeleteExpression))
+            {
+                if (from == null) throw new NotSupportedException("From cannot be null");
+                if (from is ListingExpression) throw new NotSupportedException("Multiple from is not supported in case of Delete");
+                return new DeleteExpression(from) { Where = _where };
+            }
+            
+            if (_targetExpression == typeof(UpdateExpression))
+            {
+                //TODO
+                return new UpdateExpression(from);
+            }
 
-            return _select;
+            throw new NotSupportedException("Invalid target expression: " + _targetExpression);
+        }
+
+        protected override Expression VisitLambda<T>(Expression<T> node)
+        {
+            if (_targetExpression == typeof (DeleteExpression))
+            {
+                _where = BuildExpression(node);
+            }
+            return base.VisitLambda(node);
         }
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
@@ -95,7 +121,7 @@ namespace Neurotoxin.Norm.Query
                 if (column != null)
                 {
                     var alias = GetAlias(declaringType);
-                    return new ColumnExpression(column.ColumnName, alias, column.BaseType.GetProperty(column.PropertyName).PropertyType);
+                    return column.ToColumnExpression(alias);
                 }
                 else
                 {

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -40,26 +41,37 @@ namespace Neurotoxin.Norm.Query
 
         public object Execute(Expression expression)
         {
+            throw new NotImplementedException();
             return ExecuteImp(expression, null);
         }
 
         public TResult Execute<TResult>(Expression expression)
         {
-            return (TResult)ExecuteImp(expression, typeof(TResult));
+            throw new NotImplementedException();
+            //return (TResult)ExecuteImp(expression, typeof(TResult));
             ////TODO: (typeof(TResult).Name == "IEnumerable`1");
             //var isEnumerable = false;
             //return (TResult)SqlQueryContext.Execute(expression, isEnumerable);
         }
 
-        private object ExecuteImp(Expression expression, Type targetType)
+        public List<T> Select<T>(Expression expression)
         {
             var elementType = TypeSystem.GetElementType(expression.Type);
-            var sqlVisitor = new LinqToSqlVisitor(Table, Columns);
+            var sqlExpression = ExecuteImp(expression, typeof (SelectExpression));
+            return (List<T>)DataEngine.Execute(elementType, sqlExpression);
+        }
+
+        public void Delete(Expression expression)
+        {
+            var sqlExpression = ExecuteImp(expression, typeof(DeleteExpression));
+            DataEngine.ExecuteNonQuery(sqlExpression);
+        }
+
+        private SqlExpression ExecuteImp(Expression expression, Type targetExpression)
+        {
+            var sqlVisitor = new LinqToSqlVisitor(Table, Columns, targetExpression);
             sqlVisitor.Visit(expression);
-            //TODO: enumarable check
-            //TODO: provide DbSet
-            //TODO: move the string builder part within the engine
-            return DataEngine.Execute(elementType, sqlVisitor.GetResult());
+            return sqlVisitor.GetResult();
         }
     }
 }

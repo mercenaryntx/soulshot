@@ -70,7 +70,7 @@ namespace Neurotoxin.Norm
 
         private static bool IsIgnorable(PropertyInfo pi)
         {
-            return false;
+            return pi.HasAttribute<IgnoreAttribute>();
         }
 
         private static string GetColumnType(PropertyInfo pi)

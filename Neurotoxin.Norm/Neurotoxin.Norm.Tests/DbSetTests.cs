@@ -10,7 +10,8 @@ namespace Neurotoxin.Norm.Tests
         [TestMethod]
         public void PropertyMapping01_ColumnTypes()
         {
-            using (var context = new TestContext("Server=ephubudw2021.budapest.epam.com;Initial Catalog=TestDb;User Id=FCPDB;Password=FCP@DB;"))
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            //using (var context = new TestContext("Server=ephubudw2021.budapest.epam.com;Initial Catalog=TestDb;User Id=FCPDB;Password=FCP@DB;"))
             {
                 
             }

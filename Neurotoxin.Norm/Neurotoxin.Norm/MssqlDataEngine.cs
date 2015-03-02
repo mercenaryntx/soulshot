@@ -17,6 +17,7 @@ namespace Neurotoxin.Norm
     public class MssqlDataEngine : DataEngineBase
     {
         private readonly SqlConnection _connection;
+        private SqlTransaction _transaction;
 
         public string ConnectionString
         {
@@ -62,28 +63,25 @@ namespace Neurotoxin.Norm
             return count == 1;
         }
 
-        protected override void CreateTable(TableAttribute table, IEnumerable<ColumnInfo> columns)
+        public override void RenameTable(TableAttribute oldName, TableAttribute newName)
         {
             var cmd = _connection.CreateCommand();
-            var columnDefinitions = string.Join(",", columns.Select(c => c.DefinitionString));
-            //TODO: proper PK handling
-            var identityColumns = columns.Where(c => c.IsIdentity).Select(c => string.Format("[{0}] ASC", c.ColumnName)).ToList();
-            var primaryKeyConstraint = identityColumns.Any()
-                ? string.Format(",CONSTRAINT [PK_{0}] PRIMARY KEY CLUSTERED ({1})", table.FullName, string.Join(",", identityColumns))
-                : string.Empty;
-            cmd.CommandText = string.Format("CREATE TABLE {0} ({1}{2})", table.FullNameWithBrackets, columnDefinitions, primaryKeyConstraint);
+            cmd.CommandText = string.Format("EXEC sp_rename '{0}', '{1}'", oldName.FullName, newName.Name);
             cmd.ExecuteNonQuery();
         }
 
-        public override void RenameTable(TableAttribute oldName, TableAttribute newName)
+        public override void DeleteTable(TableAttribute table)
         {
-            //throw new NotImplementedException();
+            var cmd = _connection.CreateCommand();
+            cmd.CommandText = string.Format("DROP TABLE {0}", table.FullNameWithBrackets);
+            cmd.ExecuteNonQuery();
         }
 
         public override void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns)
         {
             using (var transaction = _connection.BeginTransaction())
             {
+                _transaction = transaction;
                 try
                 {
                     foreach (IProxy entity in entities)
@@ -91,13 +89,13 @@ namespace Neurotoxin.Norm
                         switch (entity.State)
                         {
                             case EntityState.Added:
-                                Insert(entity, table, columns, transaction);
+                                Insert(entity, table, columns);
                                 break;
                             case EntityState.Changed:
-                                Update(entity, table, columns, transaction);
+                                Update(entity, table, columns);
                                 break;
                             case EntityState.Deleted:
-                                Delete(entity, table, columns, transaction);
+                                Delete(entity, table, columns);
                                 break;
                         }
                     }
@@ -108,6 +106,7 @@ namespace Neurotoxin.Norm
                     transaction.Rollback();
                     throw;
                 }
+                _transaction = null;
             }
         }
 
@@ -122,62 +121,18 @@ namespace Neurotoxin.Norm
             return intValue.HasValue ? intValue.ToString() : value.ToString();
         }
 
-        private void Insert(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns, SqlTransaction transaction = null)
+        public override void ExecuteNonQuery(Expression expression)
         {
-            var cmd = _connection.CreateCommand();
-            cmd.Transaction = transaction;
-            var columnNames = new StringBuilder();
-            var values = new StringBuilder();
-            foreach (var column in columns.Where(c => !c.IsIdentity))
-            {
-                if (columnNames.Length != 0)
-                {
-                    columnNames.Append(",");
-                    values.Append(",");
-                }
-                columnNames.Append("[");
-                columnNames.Append(column.ColumnName);
-                columnNames.Append("]");
-                values.Append(GetLiteral(column.BaseType.GetProperty(column.PropertyName).GetValue(entity)));
-            }
-            cmd.CommandText = string.Format("INSERT INTO {0} ({1}) VALUES ({2})", table.FullNameWithBrackets, columnNames, values);
-            cmd.ExecuteNonQuery();
-        }
-
-        private void Update(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns, SqlTransaction transaction = null)
-        {
-            var cmd = _connection.CreateCommand();
-            cmd.Transaction = transaction;
-
-            //TODO: use SqlCommandTextVisitor
-
-            //var setBuilder = new StringBuilder();
-            //foreach (var property in entity.DirtyProperties)
-            //{
-            //    if (setBuilder.Length != 0)
-            //    {
-            //        setBuilder.Append(",");
-            //    }
-            //    var pi = type.GetProperty(property);
-            //    var column = columns.First(c => c.BaseType == pi.DeclaringType && c.PropertyName == property);
-            //    setBuilder.Append("SET ");
-            //    setBuilder.Append(column.ColumnName);
-            //    setBuilder.Append(" = ");
-            //    setBuilder.Append(GetLiteral(pi.GetValue(entity)));
-            //}
-            //cmd.CommandText = string.Format("UPDATE {0} {1} WHERE {2}", table.FullNameWithBrackets, setBuilder, whereBuilder);
-        }
-
-        private void Delete(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns, SqlTransaction transaction = null)
-        {
-            throw new NotImplementedException();
+            var visitor = new SqlCommandTextVisitor(this);
+            visitor.Visit(expression);
+            _connection.ExecuteNonQuery(visitor.CommandText, _transaction);
         }
 
         public override IEnumerable Execute(Type elementType, Expression expression)
         {
             var visitor = new SqlCommandTextVisitor(this);
             visitor.Visit(expression);
-            return _connection.ExecuteQuery(elementType, visitor.CommandText);
+            return _connection.ExecuteQuery(elementType, visitor.CommandText, _transaction);
         }
 
         public override void Dispose()

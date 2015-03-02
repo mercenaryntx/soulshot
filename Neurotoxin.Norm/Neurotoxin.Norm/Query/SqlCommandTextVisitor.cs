@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,6 +12,7 @@ namespace Neurotoxin.Norm.Query
     {
         private readonly StringBuilder _commandBuilder = new StringBuilder();
         private IDataEngine _dataEngine;
+        private bool _useAliases = true;
 
         public string CommandText
         {
@@ -26,6 +28,15 @@ namespace Neurotoxin.Norm.Query
         {
             var selectExpression = node as SelectExpression;
             if (selectExpression != null) return VisitSelect(selectExpression);
+
+            var deleteExpression = node as DeleteExpression;
+            if (deleteExpression != null) return VisitDelete(deleteExpression);
+
+            var updateExpression = node as UpdateExpression;
+            if (updateExpression != null) return VisitUpdate(updateExpression);
+
+            var insertExpression = node as InsertExpression;
+            if (insertExpression != null) return VisitInsert(insertExpression);
 
             var listingExpression = node as ListingExpression;
             if (listingExpression != null) return VisitListing(listingExpression);
@@ -59,6 +70,49 @@ namespace Neurotoxin.Norm.Query
             return node;
         }
 
+        protected virtual Expression VisitDelete(DeleteExpression node)
+        {
+            _useAliases = false;
+            _commandBuilder.Append("DELETE FROM");
+            Visit(node.From);
+            if (node.Where != null)
+            {
+                _commandBuilder.Append(" WHERE");
+                Visit(node.Where);
+            }
+            return node;
+        }
+
+        protected virtual Expression VisitUpdate(UpdateExpression node)
+        {
+            _commandBuilder.Append("UPDATE");
+            Visit(node.Set);
+            //TODO: support from
+            Visit(node.Target);
+            if (node.Where != null)
+            {
+                _commandBuilder.Append(" WHERE");
+                Visit(node.Where);
+            }
+            return node;
+        }
+
+        protected virtual Expression VisitInsert(InsertExpression node)
+        {
+            _commandBuilder.Append("INSERT INTO ");
+            Visit(node.Into);
+            if (node.Values != null)
+            {
+                Visit(node.Values);
+            }
+            else if (node.Select != null)
+            {
+                _commandBuilder.Append(" ");
+                Visit(node.Select);
+            }
+            return node;
+        }
+        
         protected virtual Expression VisitListing(ListingExpression node)
         {
             Visit(node.Left);
@@ -86,19 +140,21 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitColumn(ColumnExpression node)
         {
-            _commandBuilder.Append(string.Format(" {0}.[{1}]", node.Alias, node.ColumnName));
+            var pattern = _useAliases ? " {0}.[{1}]" : " [{1}]";
+            _commandBuilder.Append(string.Format(pattern, node.Alias, node.ColumnName));
             return node;
         }
 
         protected virtual Expression VisitTable(TableExpression node)
         {
-            _commandBuilder.Append(string.Format(" {0} {1}", node.Table.FullNameWithBrackets, node.Alias));
+            var pattern = _useAliases ? " {0} {1}" : " {0}";
+            _commandBuilder.Append(string.Format(pattern, node.Table.FullNameWithBrackets, node.Alias));
             return node;
         }
 
         protected virtual Expression VisitAsterisk(AsteriskExpression node)
         {
-            _commandBuilder.Append("*");
+            _commandBuilder.Append(" *");
             return node;
         }
 

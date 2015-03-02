@@ -8,8 +8,8 @@ namespace Neurotoxin.Norm.Tests.Models
         [Key]
         public int Id { get; set; }
 
-        //[Index]
-        //public Guid EntityId { get; set; }
+        [Index]
+        public Guid EntityId { get; set; }
 
         public string Name { get; set; }
     }

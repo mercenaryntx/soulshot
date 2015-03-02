@@ -18,6 +18,7 @@ namespace Neurotoxin.Norm
         List<ColumnInfo> CreateTable<TEntity>(TableAttribute table);
         List<ColumnInfo> UpdateTable<TEntity>(TableAttribute table, List<ColumnInfo> storedColumns);
         void RenameTable(TableAttribute oldName, TableAttribute newName);
+        void ExecuteNonQuery(Expression expression);
         IEnumerable Execute(Type elementType, Expression expression);
         IEnumerable<TEntity> Execute<TEntity>(Expression expression);
         void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns);

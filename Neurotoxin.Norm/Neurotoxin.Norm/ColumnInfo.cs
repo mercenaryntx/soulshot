@@ -1,9 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 using Neurotoxin.Norm.Annotations;
+using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
 {
@@ -19,6 +19,7 @@ namespace Neurotoxin.Norm
         public bool IsNullable { get; set; }
         public bool IsIdentity { get; set; }
 
+        [Ignore]
         public string DefinitionString
         {
             get
@@ -35,17 +36,23 @@ namespace Neurotoxin.Norm
             }
         }
 
+        [Ignore]
+        public PropertyInfo Property
+        {
+            get { return BaseType.GetProperty(PropertyName); }
+        }
+
         public override bool Equals(object obj)
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != GetType()) return false;
+            if (!obj.GetType().IsInstanceOfType(this) && !GetType().IsInstanceOfType(obj)) return false;
             return Equals((ColumnInfo) obj);
         }
 
         protected bool Equals(ColumnInfo other)
         {
-            return string.Equals(TableName, other.TableName) && string.Equals(TableSchema, other.TableSchema) && string.Equals(ColumnName, other.ColumnName) && string.Equals(ColumnType, other.ColumnType) && string.Equals(PropertyName, other.PropertyName) && IsNullable.Equals(other.IsNullable) && IsIdentity.Equals(other.IsIdentity);
+            return string.Equals(TableName, other.TableName) && string.Equals(TableSchema, other.TableSchema) && string.Equals(ColumnName, other.ColumnName) && Equals(BaseType, other.BaseType) && string.Equals(ColumnType, other.ColumnType) && string.Equals(PropertyName, other.PropertyName) && IsNullable.Equals(other.IsNullable) && IsIdentity.Equals(other.IsIdentity);
         }
 
         public override int GetHashCode()
@@ -53,15 +60,31 @@ namespace Neurotoxin.Norm
             unchecked
             {
                 int hashCode = (TableName != null ? TableName.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ (TableSchema != null ? TableSchema.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ (ColumnName != null ? ColumnName.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ (ColumnType != null ? ColumnType.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ (PropertyName != null ? PropertyName.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ IsNullable.GetHashCode();
-                hashCode = (hashCode * 397) ^ IsIdentity.GetHashCode();
+                hashCode = (hashCode*397) ^ (TableSchema != null ? TableSchema.GetHashCode() : 0);
+                hashCode = (hashCode*397) ^ (ColumnName != null ? ColumnName.GetHashCode() : 0);
+                hashCode = (hashCode*397) ^ (BaseType != null ? BaseType.GetHashCode() : 0);
+                hashCode = (hashCode*397) ^ (ColumnType != null ? ColumnType.GetHashCode() : 0);
+                hashCode = (hashCode*397) ^ (PropertyName != null ? PropertyName.GetHashCode() : 0);
+                hashCode = (hashCode*397) ^ IsNullable.GetHashCode();
+                hashCode = (hashCode*397) ^ IsIdentity.GetHashCode();
                 return hashCode;
             }
         }
-    
+
+        public ColumnExpression ToColumnExpression(string alias = null)
+        {
+            return new ColumnExpression(ColumnName, alias, Property.PropertyType);
+        }
+
+        public BinaryExpression ToEqualExpression(object obj, string alias = null)
+        {
+            var value = GetValue(obj);
+            return Expression.MakeBinary(ExpressionType.Equal, ToColumnExpression(alias), Expression.Constant(value));
+        }
+
+        public object GetValue(object obj)
+        {
+            return Property.GetValue(obj);
+        }
     }
 }

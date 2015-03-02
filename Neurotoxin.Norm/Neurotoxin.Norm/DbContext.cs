@@ -22,7 +22,7 @@ namespace Neurotoxin.Norm
                 var table = GetTableDefinition(pi);
                 var columns = migrationHistory.Where(e => e.TableName == table.Name && e.TableSchema == table.Schema).ToList();
                 var dbSet = CreateDbSet(pi, table, columns);
-                if (dbSet.Columns != columns)
+                if (!dbSet.Columns.SequenceEqual(columns))
                 {
                     migrationHistory.Remove(e => e.TableName == table.Name && e.TableSchema == table.Schema);
                     foreach (var column in dbSet.Columns)

@@ -19,6 +19,7 @@ namespace Neurotoxin.Norm
 
         public List<ColumnInfo> Columns { get; private set; }
         public bool TableUpdated { get; private set; }
+        public SqlQueryProvider Provider { get; private set; }
 
         internal DbSet(IDataEngine dataEngine)
         {
@@ -63,9 +64,9 @@ namespace Neurotoxin.Norm
             return entity;
         }
 
-        public void Remove(Func<TEntity, bool> expression)
+        public void Remove(Expression<Func<TEntity, bool>> expression)
         {
-            //throw new NotImplementedException();
+            Provider.Delete(expression);
         }
 
         public void SaveChanges()
@@ -76,7 +77,7 @@ namespace Neurotoxin.Norm
         #region IQueryable members
 
         public Expression Expression { get; private set; }
-        public IQueryProvider Provider { get; private set; }
+        IQueryProvider IQueryable.Provider { get { return Provider; } }
 
         public Type ElementType
         {
@@ -85,7 +86,7 @@ namespace Neurotoxin.Norm
 
         public IEnumerator<TEntity> GetEnumerator()
         {
-            var resultSet = Provider.Execute<List<TEntity>>(Expression);
+            var resultSet = Provider.Select<TEntity>(Expression);
             foreach (var entity in resultSet)
             {
                 Add(entity, EntityState.Unchanged);

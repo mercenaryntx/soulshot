@@ -51,6 +51,10 @@
   </Choose>
   <ItemGroup>
     <Compile Include="DbSetTests.cs" />
+    <Compile Include="Models\ClassA.cs" />
+    <Compile Include="Models\ClassB.cs" />
+    <Compile Include="Models\ClassC.cs" />
+    <Compile Include="Models\ClassD.cs" />
     <Compile Include="Models\EntityBase.cs" />
     <Compile Include="Models\TestContext.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

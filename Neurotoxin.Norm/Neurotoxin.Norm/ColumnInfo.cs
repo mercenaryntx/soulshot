@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
@@ -14,10 +16,13 @@ namespace Neurotoxin.Norm
         public string TableSchema { get; set; }
         public string ColumnName { get; set; }
         public string ColumnType { get; set; }
-        public Type BaseType { get; set; }
+        //public Type BaseType { get; set; }
         public string PropertyName { get; set; }
         public bool IsNullable { get; set; }
         public bool IsIdentity { get; set; }
+
+        [Ignore]
+        public List<Type> DeclaringTypes { get; set; }
 
         [Ignore]
         public string DefinitionString
@@ -36,11 +41,11 @@ namespace Neurotoxin.Norm
             }
         }
 
-        [Ignore]
-        public PropertyInfo Property
-        {
-            get { return BaseType.GetProperty(PropertyName); }
-        }
+        //[Ignore]
+        //public PropertyInfo Property
+        //{
+        //    get { return BaseType.GetProperty(PropertyName); }
+        //}
 
         public override bool Equals(object obj)
         {
@@ -52,7 +57,14 @@ namespace Neurotoxin.Norm
 
         protected bool Equals(ColumnInfo other)
         {
-            return string.Equals(TableName, other.TableName) && string.Equals(TableSchema, other.TableSchema) && string.Equals(ColumnName, other.ColumnName) && Equals(BaseType, other.BaseType) && string.Equals(ColumnType, other.ColumnType) && string.Equals(PropertyName, other.PropertyName) && IsNullable.Equals(other.IsNullable) && IsIdentity.Equals(other.IsIdentity);
+            return string.Equals(TableName, other.TableName) && 
+                string.Equals(TableSchema, other.TableSchema) && 
+                string.Equals(ColumnName, other.ColumnName) && 
+                //Equals(BaseType, other.BaseType) && 
+                string.Equals(ColumnType, other.ColumnType) && 
+                string.Equals(PropertyName, other.PropertyName) && 
+                IsNullable.Equals(other.IsNullable) && 
+                IsIdentity.Equals(other.IsIdentity);
         }
 
         public override int GetHashCode()
@@ -62,7 +74,7 @@ namespace Neurotoxin.Norm
                 int hashCode = (TableName != null ? TableName.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ (TableSchema != null ? TableSchema.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ (ColumnName != null ? ColumnName.GetHashCode() : 0);
-                hashCode = (hashCode*397) ^ (BaseType != null ? BaseType.GetHashCode() : 0);
+                //hashCode = (hashCode*397) ^ (BaseType != null ? BaseType.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ (ColumnType != null ? ColumnType.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ (PropertyName != null ? PropertyName.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ IsNullable.GetHashCode();
@@ -73,7 +85,8 @@ namespace Neurotoxin.Norm
 
         public ColumnExpression ToColumnExpression(string alias = null)
         {
-            return new ColumnExpression(ColumnName, alias, Property.PropertyType);
+            //return new ColumnExpression(ColumnName, alias, Property.PropertyType);
+            return new ColumnExpression(ColumnName, alias, DeclaringTypes[0].GetProperty(PropertyName).PropertyType);
         }
 
         public BinaryExpression ToEqualExpression(object obj, string alias = null)
@@ -84,7 +97,7 @@ namespace Neurotoxin.Norm
 
         public object GetValue(object obj)
         {
-            return Property.GetValue(obj);
+            return obj.GetType().GetProperty(PropertyName).GetValue(obj);
         }
     }
 }

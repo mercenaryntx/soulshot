@@ -1,4 +1,6 @@
-﻿namespace Neurotoxin.Norm.Annotations
+﻿using System;
+
+namespace Neurotoxin.Norm.Annotations
 {
     public class BinaryAttribute : ColumnTypeAttribute
     {
@@ -10,5 +12,6 @@
         {
             Length = length;
         }
+
     }
 }

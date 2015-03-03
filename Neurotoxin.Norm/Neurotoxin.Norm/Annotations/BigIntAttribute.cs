@@ -7,5 +7,6 @@ namespace Neurotoxin.Norm.Annotations
         public BigIntAttribute() : base("bigint")
         {
         }
+
     }
 }

@@ -15,6 +15,7 @@ namespace Neurotoxin.Norm
         {
             _dataEngine = new MssqlDataEngine(connectionString);
             var migrationHistory = new DbSet<ColumnInfo>(_dataEngine);
+            migrationHistory.Init();
 
             var iDbSet = typeof(IDbSet);
             foreach (var pi in GetType().GetProperties().Where(pi => iDbSet.IsAssignableFrom(pi.PropertyType)))
@@ -45,7 +46,9 @@ namespace Neurotoxin.Norm
         private IDbSet CreateDbSet(PropertyInfo pi, TableAttribute table, List<ColumnInfo> columns)
         {
             var ctor = pi.PropertyType.GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { table.GetType(), columns.GetType(), typeof(IDataEngine) }, null);
-            return (IDbSet)ctor.Invoke(new object[] { table, columns, _dataEngine });
+            var instance = (IDbSet)ctor.Invoke(new object[] { table, columns, _dataEngine });
+            instance.Init();
+            return instance;
         }
 
         public void Dispose()

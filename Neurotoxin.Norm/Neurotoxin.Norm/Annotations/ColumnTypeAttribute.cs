@@ -23,6 +23,5 @@ namespace Neurotoxin.Norm.Annotations
             if (Length.HasValue) return string.Format("{0}({1})", Type, Length);
             return Type;
         }
-
     }
 }

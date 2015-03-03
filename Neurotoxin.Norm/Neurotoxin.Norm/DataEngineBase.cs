@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using Neurotoxin.Norm.Annotations;
 using Neurotoxin.Norm.Extensions;
 using Neurotoxin.Norm.Query;
@@ -36,15 +37,15 @@ namespace Neurotoxin.Norm
             var pk = new ConstraintExpression(Expression.Constant("PK_" + table.FullName), ConstraintType.PrimaryKey | ConstraintType.Clustered);
             foreach (var column in columns)
             {
-                create.AddColumn(Expression.Constant(column.DefinitionString));
+                create.AddColumn(new SqlPartExpression(column.DefinitionString));
                 if (column.IsIdentity)
                 {
                     //TODO: proper PK and sort order handling
-                    pk.AddColumn(column.ToColumnExpression("ASC"));
+                    pk.AddColumn(new SqlPartExpression(string.Format("[{0}] ASC", column.ColumnName)));
                 }
             }
 
-            if (generateConstraints) create.AddConstraint(pk);
+            if (generateConstraints && pk.Columns != null) create.AddConstraint(pk);
             //TODO: support indexes
 
             ExecuteNonQuery(create);
@@ -60,9 +61,9 @@ namespace Neurotoxin.Norm
                     var tmpTable = new TableAttribute(table.Name + "_tmp", table.Schema);
                     CreateTable(tmpTable, actualColumns, false);
                     CopyValues(table, tmpTable, actualColumns.Where(c => storedColumns.Any(cc => cc.ColumnName == c.ColumnName)).ToList());
+                    DeleteTable(table);
                     RenameTable(tmpTable, table);
                     //TODO: append constraints
-                    DeleteTable(tmpTable);
                 }
             }
             else
@@ -87,11 +88,20 @@ namespace Neurotoxin.Norm
         {
             var values = new ValuesExpression();
             var insert = new InsertExpression(new TableExpression(table)) { Values = values };
+            var type = entity.GetType();
             //TODO: handle identity insert
             foreach (var column in columns.Where(c => !c.IsIdentity))
             {
-                values.AddColumn(column.ToColumnExpression());
-                values.AddValue(Expression.Constant(column.GetValue(entity)));
+                try
+                {
+                    var pi = type.GetProperty(column.PropertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                    values.AddColumn(column.ToColumnExpression());
+                    values.AddValue(Expression.Constant(pi.GetValue(entity)));
+                }
+                catch (Exception ex)
+                {
+                    Debugger.Break();
+                }
             }
             ExecuteNonQuery(insert);
         }
@@ -108,7 +118,7 @@ namespace Neurotoxin.Norm
             foreach (var property in entity.DirtyProperties)
             {
                 var pi = type.GetProperty(property);
-                var column = columns.First(c => c.BaseType == pi.DeclaringType && c.PropertyName == property);
+                var column = columns.First(c => c.DeclaringTypes.Contains(pi.DeclaringType) && c.PropertyName == property);
                 update.AddSet(new SetExpression(column.ToColumnExpression(), Expression.Constant(pi.GetValue(entity))));
             }
             ExecuteNonQuery(update);

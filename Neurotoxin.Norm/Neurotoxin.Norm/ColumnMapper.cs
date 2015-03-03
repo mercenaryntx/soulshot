@@ -2,38 +2,28 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 using Neurotoxin.Norm.Annotations;
 using Neurotoxin.Norm.Extensions;
+using Neurotoxin.Norm.Mappers;
 
 namespace Neurotoxin.Norm
 {
     public static class ColumnMapper
     {
-        private readonly static Dictionary<Type, ColumnTypeAttribute> DefaultColumnTypes = new Dictionary<Type, ColumnTypeAttribute>
-        {
-            { typeof(Int16), new SmallIntAttribute() },
-            { typeof(Int32), new IntegerAttribute() },
-            { typeof(Int64), new BigIntAttribute() },
-            { typeof(UInt16), new SmallIntAttribute() },
-            { typeof(UInt32), new IntegerAttribute() },
-            { typeof(UInt64), new BigIntAttribute() },
-            { typeof(Decimal), new DecimalAttribute() },
-            { typeof(Single), new FloatAttribute() },
-            { typeof(Double), new FloatAttribute() },
-            { typeof(String), new NVarcharAttribute(true) },
-            { typeof(Char), new CharAttribute(1) },
-            { typeof(DateTime), new DateTime2Attribute() },
-            { typeof(DateTimeOffset), new DateTimeOffsetAttribute() },
-            { typeof(TimeSpan), new TimeAttribute() },
-            { typeof(Boolean), new BooleanAttribute() },
-            { typeof(byte[]), new VarbinaryAttribute() },
-            { typeof(Guid), new UniqueIdentifierAttribute() },
-            { typeof(Enum), new IntegerAttribute() },
-            { typeof(Type), new NVarcharAttribute(255) }
-        };
+        public const string DiscriminatorColumnName = "Discriminator";
+        public static readonly Dictionary<Type, ColumnTypeAttribute> DefaultTypeAttributes = new Dictionary<Type, ColumnTypeAttribute>();
+        public static readonly Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase> Mappers = new Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase>();
 
+        static ColumnMapper()
+        {
+            var mapperbase = typeof (MapperBase);
+            foreach (var type in mapperbase.Assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && mapperbase.IsAssignableFrom(t)))
+            {
+                var mapper = (MapperBase)Activator.CreateInstance(type);
+                DefaultTypeAttributes.Add(mapper.PropertyType, mapper.ColumnType);
+                Mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(mapper.PropertyType, mapper.ColumnType), mapper);
+            }
+        }
 
         public static List<ColumnInfo> Map<TEntity>(TableAttribute table)
         {
@@ -44,14 +34,32 @@ namespace Neurotoxin.Norm
                                          .OrderBy(t => t.GetGenerationNumberFrom(baseType))
                                          .ThenBy(t => t.Name)
                                          .ToList();
+
+            if (types.Count > 1)
+                columns.Add(DiscriminatorColumnName, new ColumnInfo
+                {
+                    TableName = table.Name,
+                    TableSchema = table.Schema,
+                    ColumnName = DiscriminatorColumnName,
+                    ColumnType = DefaultTypeAttributes[typeof(string)].ToString()
+                });
+
             foreach (var pi in types.SelectMany(t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)))
             {
                 if (IsIgnorable(pi)) continue;
-                var columnType = GetColumnType(pi);
+                var columnType = GetColumnType(pi).ToString();
                 var columnName = pi.Name;
-                if (columns.ContainsKey(columnName) && columns[columnName].ColumnType != columnType)
+                if (columns.ContainsKey(columnName))
                 {
-                    columnName = pi.DeclaringType.Name + pi.Name;
+                    if (columns[columnName].ColumnType != columnType)
+                    {
+                        columnName = pi.DeclaringType.Name + pi.Name;
+                    }
+                    else
+                    {
+                        columns[columnName].DeclaringTypes.Add(pi.DeclaringType);
+                        continue;
+                    }
                 }
                 columns.Add(columnName, new ColumnInfo
                 {
@@ -59,13 +67,35 @@ namespace Neurotoxin.Norm
                     TableSchema = table.Schema,
                     ColumnName = columnName,
                     ColumnType = columnType,
-                    BaseType = pi.DeclaringType,
+//                    BaseType = pi.DeclaringType,
+                    DeclaringTypes = new List<Type> { pi.DeclaringType },
                     PropertyName = pi.Name,
                     IsNullable = !pi.PropertyType.IsValueType,
                     IsIdentity = pi.HasAttribute<KeyAttribute>()
                 });
             }
+
             return columns.Values.ToList();
+        }
+
+        public static object MapToPropertyValue(object value, PropertyInfo pi)
+        {
+            var columnType = GetColumnType(pi);
+            return MapToPropertyValue(value, pi.PropertyType, columnType);
+        }
+
+        public static Type MapType(string value)
+        {
+            var columnType = GetDefaultColumnType(typeof(string));
+            return (Type)MapToPropertyValue(value, typeof(Type), columnType);
+        }
+
+        private static object MapToPropertyValue(object value, Type propertyType, ColumnTypeAttribute columnType)
+        {
+            var key = new KeyValuePair<Type, ColumnTypeAttribute>(propertyType, columnType);
+            if (!Mappers.ContainsKey(key)) throw new Exception(string.Format("Mapper not found: {0} <-> {1}", key.Key, key.Value));
+            var mapper = Mappers[key];
+            return mapper.MapFromSql(value);
         }
 
         private static bool IsIgnorable(PropertyInfo pi)
@@ -73,16 +103,16 @@ namespace Neurotoxin.Norm
             return pi.HasAttribute<IgnoreAttribute>();
         }
 
-        private static string GetColumnType(PropertyInfo pi)
+        private static ColumnTypeAttribute GetColumnType(PropertyInfo pi)
         {
             var attribute = pi.GetAttribute<ColumnTypeAttribute>() ?? GetDefaultColumnType(pi.PropertyType);
-            return attribute.ToString();
+            return attribute;
         }
 
         private static ColumnTypeAttribute GetDefaultColumnType(Type type)
         {
             if (type.IsEnum) type = typeof(Enum);
-            if (DefaultColumnTypes.ContainsKey(type)) return DefaultColumnTypes[type];
+            if (DefaultTypeAttributes.ContainsKey(type)) return DefaultTypeAttributes[type];
             throw new NotSupportedException("Unmappable type: " + type.FullName);
         }
 

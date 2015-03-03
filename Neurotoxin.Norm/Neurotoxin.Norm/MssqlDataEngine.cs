@@ -72,9 +72,8 @@ namespace Neurotoxin.Norm
 
         public override void DeleteTable(TableAttribute table)
         {
-            var cmd = _connection.CreateCommand();
-            cmd.CommandText = string.Format("DROP TABLE {0}", table.FullNameWithBrackets);
-            cmd.ExecuteNonQuery();
+            var drop = new DropTableExpression(new TableExpression(table));
+            ExecuteNonQuery(drop);
         }
 
         public override void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns)
@@ -112,6 +111,8 @@ namespace Neurotoxin.Norm
 
         public override string GetLiteral(object value)
         {
+            if (value == null) return "null";
+
             //TODO: proper mapping
             var type = value.GetType();
             if (type.IsClass) return "N'" + value + "'";

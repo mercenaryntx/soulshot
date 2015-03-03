@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using Neurotoxin.Norm.Annotations;
@@ -10,25 +9,26 @@ using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
 {
-    public class DbSet<TEntity> : IDbSet, IQueryable<TEntity> //where TEntity : class
+    public class DbSet<TEntity> : IDbSet, IQueryable<TEntity>
     {
-        private TableAttribute _table;
-        private IDataEngine _dataEngine;
-        private List<ColumnInfo> _keyColumns;
+        private readonly TableAttribute _table;
+        private readonly IDataEngine _dataEngine;
         private readonly List<TEntity> _cachedEntities = new List<TEntity>();
 
         public List<ColumnInfo> Columns { get; private set; }
-        public bool TableUpdated { get; private set; }
         public SqlQueryProvider Provider { get; private set; }
 
         internal DbSet(IDataEngine dataEngine)
         {
-            Init(typeof(TEntity).GetTableAttribute(), null, dataEngine);
+            _table = typeof (TEntity).GetTableAttribute();
+            _dataEngine = dataEngine;
         }
 
         internal DbSet(TableAttribute table, List<ColumnInfo> columns, IDataEngine dataEngine)
         {
-            Init(table, columns, dataEngine);
+            _table = table;
+            Columns = columns;
+            _dataEngine = dataEngine;
         }
 
         public DbSet(SqlQueryProvider provider, Expression expression)
@@ -44,20 +44,16 @@ namespace Neurotoxin.Norm
             Expression = expression;
         }
 
-        private void Init(TableAttribute table, List<ColumnInfo> columns, IDataEngine dataEngine)
+        public void Init()
         {
-            _table = table;
-            _dataEngine = dataEngine;
-            Columns = _dataEngine.UpdateTable<TEntity>(_table, columns);
-            _keyColumns = Columns.Where(c => c.IsIdentity).ToList();
-            Provider = new SqlQueryProvider(dataEngine, table, Columns);
+            Columns = _dataEngine.UpdateTable<TEntity>(_table, Columns);
+            Provider = new SqlQueryProvider(_dataEngine, _table, Columns);
             Expression = Expression.Constant(this);
         }
 
         public TEntity Add(TEntity entity, EntityState state = EntityState.Added)
         {
             var proxy = entity as IProxy ?? (IProxy)DynamicProxy.Instance.Wrap(entity);
-            //var key = GetKey(entity);
             entity = (TEntity) proxy;
             _cachedEntities.Add(entity);
             proxy.State = state;
@@ -100,11 +96,6 @@ namespace Neurotoxin.Norm
         }
 
         #endregion
-
-        private EntityKey GetKey(TEntity entity)
-        {
-            return new EntityKey(_keyColumns.Select(c => c.BaseType.GetProperty(c.PropertyName).GetValue(entity, null)));
-        }
 
     }
 }

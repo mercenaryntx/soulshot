@@ -38,8 +38,8 @@ namespace Neurotoxin.Norm.Query
 
             if (_targetExpression == typeof(SelectExpression))
             {
-                var select = _select ?? new SelectExpression(new AsteriskExpression());
-                select.From = from;
+                var select = _select ?? new SelectExpression(from);
+                select.Selection = new AsteriskExpression();
                 select.Where = _where;
                 return select;
             }
@@ -117,7 +117,7 @@ namespace Neurotoxin.Norm.Query
             {
                 var mi = memberExpression.Member;
                 var declaringType = mi.DeclaringType;
-                var column = _columnMapping.SingleOrDefault(c => c.BaseType == declaringType && c.PropertyName == mi.Name);
+                var column = _columnMapping.SingleOrDefault(c => c.DeclaringTypes.Contains(declaringType) && c.PropertyName == mi.Name);
                 if (column != null)
                 {
                     var alias = GetAlias(declaringType);

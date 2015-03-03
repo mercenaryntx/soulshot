@@ -109,7 +109,7 @@ namespace Neurotoxin.Norm
             return (Type)mapper.MapFromSql(value);
         }
 
-        private static MapperBase GetMapper(Type propertyType, ColumnTypeAttribute columnType)
+        internal static MapperBase GetMapper(Type propertyType, ColumnTypeAttribute columnType)
         {
             var key = new KeyValuePair<Type, ColumnTypeAttribute>(propertyType, columnType);
             if (!Mappers.ContainsKey(key)) throw new Exception(string.Format("Mapper not found: {0} <-> {1}", key.Key, key.Value));
@@ -121,7 +121,7 @@ namespace Neurotoxin.Norm
             return pi.HasAttribute<IgnoreAttribute>();
         }
 
-        private static ColumnTypeAttribute GetColumnType(PropertyInfo pi)
+        internal static ColumnTypeAttribute GetColumnType(PropertyInfo pi)
         {
             var attribute = pi.GetAttribute<ColumnTypeAttribute>() ?? GetDefaultColumnType(pi.PropertyType);
             return attribute;

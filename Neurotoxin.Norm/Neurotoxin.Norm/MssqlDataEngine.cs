@@ -1,16 +1,12 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
-using System.Dynamic;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
 using System.Text.RegularExpressions;
 using Neurotoxin.Norm.Annotations;
-using Neurotoxin.Norm.Extensions;
 using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
@@ -141,6 +137,7 @@ namespace Neurotoxin.Norm
 
         private IEnumerable ExecuteQuery(Type type, string command)
         {
+            var columns = ColumnMapper.Cache[type].ToDictionary(c => c.ColumnName, c => c.PropertyName);
             var listType = typeof(List<>).MakeGenericType(type);
             var addMethod = listType.GetMethod("Add");
             var list = Activator.CreateInstance(listType);
@@ -158,7 +155,7 @@ namespace Neurotoxin.Norm
                         dict.Add(reader.GetName(i), reader.GetValue(i));
                     }
 
-                    var instance = MapType(type, dict);
+                    var instance = MapType(type, dict, columns);
                     addMethod.Invoke(list, new[] { instance });
                 }
                 reader.Close();

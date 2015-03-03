@@ -7,6 +7,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Neurotoxin.Norm.Annotations;
 using Neurotoxin.Norm.Extensions;
+using Neurotoxin.Norm.Mappers;
 using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
@@ -151,7 +152,7 @@ namespace Neurotoxin.Norm
             return (IEnumerable<TEntity>)Execute(typeof(TEntity), expression);
         }
 
-        protected object MapType(Type type, Dictionary<string, object> values)
+        protected object MapType(Type type, Dictionary<string, object> values, Dictionary<string, string> columns)
         {
             var entityType = type;
             var first = values.First();
@@ -162,7 +163,6 @@ namespace Neurotoxin.Norm
                 skip = 1;
             }
 
-            var columns = ColumnMapper.Cache[type];
             var proxyType = DynamicProxy.Instance.GetProxyType(entityType);
             var instance = Activator.CreateInstance(proxyType);
 
@@ -171,10 +171,12 @@ namespace Neurotoxin.Norm
                 var name = kvp.Key;
                 var value = kvp.Value;
 
-                var propertyName = columns.Single(c => c.ColumnName == name).PropertyName;
+                var propertyName = columns[name];
                 var pi = entityType.GetProperty(propertyName);
                 if (pi == null || !pi.CanWrite) continue;
-                pi.SetValue(instance, ColumnMapper.MapToPropertyValue(value, pi));
+
+                var mappedValue = ColumnMapper.MapToPropertyValue(value, pi);
+                pi.SetValue(instance, mappedValue);
             }
             return instance;
         }

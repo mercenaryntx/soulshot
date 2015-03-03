@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Neurotoxin.Norm.Annotations;
@@ -86,8 +87,13 @@ namespace Neurotoxin.Norm.Tests
         [TestMethod]
         public void WriteAndReadBack()
         {
+            var sw = new Stopwatch();
+            sw.Start();
             using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
             {
+                Console.WriteLine("Init " + sw.Elapsed);
+                sw.Restart();
+
                 var guid = Guid.NewGuid();
                 var newEntity = new ClassD
                 {
@@ -96,9 +102,15 @@ namespace Neurotoxin.Norm.Tests
                     NumberOfSomething = 5
                 };
                 context.TestTable.Add(newEntity);
+                Console.WriteLine("Add " + sw.Elapsed);
+                sw.Restart();
                 context.SaveChanges();
+                Console.WriteLine("Persist " + sw.Elapsed);
+                sw.Restart();
 
                 var storedEntity = context.TestTable.SingleOrDefault(e => e.EntityId == guid);
+                Console.WriteLine("Select " + sw.Elapsed);
+
                 Assert.IsInstanceOfType(storedEntity, typeof(ClassD));
 
                 var classD = (ClassD) storedEntity;
@@ -107,5 +119,74 @@ namespace Neurotoxin.Norm.Tests
                 Assert.AreNotEqual(classD.Id, 0);
             }
         }
+
+        [TestMethod]
+        public void InsertInTransactionSpeed()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                for (var i = 0; i < 100; i++)
+                {
+                    var guid = Guid.NewGuid();
+                    var newEntity = new ClassD
+                    {
+                        EntityId = guid,
+                        Name = "Lorem ipsum",
+                        NumberOfSomething = 5
+                    };
+                    context.TestTable.Add(newEntity);
+                    Console.WriteLine("Add " + sw.Elapsed);
+                    sw.Restart();
+                }
+                context.SaveChanges();
+                Console.WriteLine("Persist " + sw.Elapsed);
+                sw.Restart();
+            }
+        }
+
+        [TestMethod]
+        public void InsertNotInTransactionSpeed()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sum = new Stopwatch();
+                sum.Start();
+                var sw = new Stopwatch();
+                sw.Start();
+                for (var i = 0; i < 100; i++)
+                {
+                    var guid = Guid.NewGuid();
+                    var newEntity = new ClassD
+                    {
+                        EntityId = guid,
+                        Name = "Lorem ipsum",
+                        NumberOfSomething = 5
+                    };
+                    context.TestTable.Add(newEntity);
+                    Console.WriteLine("Add " + sw.Elapsed);
+                    sw.Restart();
+                    context.SaveChanges();
+                    Console.WriteLine("Persist " + sw.Elapsed);
+                    sw.Restart();
+                }
+                Console.WriteLine("-----");
+                Console.WriteLine(sum.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void Read100()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var entities = context.TestTable.ToList();
+                Console.WriteLine("{0} Select {1}", entities.Count, sw.Elapsed);
+            }
+        }
+
     }
 }

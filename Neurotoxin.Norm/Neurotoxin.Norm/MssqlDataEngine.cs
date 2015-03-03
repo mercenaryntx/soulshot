@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Dynamic;
@@ -46,10 +47,10 @@ namespace Neurotoxin.Norm
 
         private void EnsureDatabase(string database)
         {
-            var count = _connection.ExecuteScalar<int>(string.Format("SELECT count(*) FROM master.dbo.sysdatabases WHERE name = '{0}'", database));
+            var count = ExecuteScalar<int>(string.Format("SELECT count(*) FROM master.dbo.sysdatabases WHERE name = '{0}'", database));
             if (count == 0)
             {
-                _connection.ExecuteNonQuery(string.Format("CREATE DATABASE {0}", database));
+                ExecuteNonQuery(string.Format("CREATE DATABASE {0}", database));
             }
             _connection.ChangeDatabase(database);
         }
@@ -59,7 +60,7 @@ namespace Neurotoxin.Norm
             var cmd = string.Format(@"select count(*) from sys.objects o
 									  inner join sys.schemas s on s.schema_id = o.schema_id
 									  where type = 'U' and o.name = '{0}' and s.name = '{1}'", table.Name, table.Schema);
-            var count = _connection.ExecuteScalar<int>(cmd);
+            var count = ExecuteScalar<int>(cmd);
             return count == 1;
         }
 
@@ -112,28 +113,65 @@ namespace Neurotoxin.Norm
         public override string GetLiteral(object value)
         {
             if (value == null) return "null";
-
-            //TODO: proper mapping
-            var type = value.GetType();
-            if (type.IsClass) return "N'" + value + "'";
-            int? intValue = null;
-            if (type.IsEnum) intValue = (int)value;
-            if (type == typeof (Boolean)) intValue = ((bool) value) ? 1 : 0;
-            return intValue.HasValue ? intValue.ToString() : value.ToString();
+            return ColumnMapper.MapToSqlValue(value);
         }
 
         public override void ExecuteNonQuery(Expression expression)
         {
             var visitor = new SqlCommandTextVisitor(this);
             visitor.Visit(expression);
-            _connection.ExecuteNonQuery(visitor.CommandText, _transaction);
+            ExecuteNonQuery(visitor.CommandText);
+        }
+
+        private void ExecuteNonQuery(string command)
+        {
+            using (var cmd = new SqlCommand(command, _connection))
+            {
+                cmd.Transaction = _transaction;
+                cmd.ExecuteNonQuery();
+            }
         }
 
         public override IEnumerable Execute(Type elementType, Expression expression)
         {
             var visitor = new SqlCommandTextVisitor(this);
             visitor.Visit(expression);
-            return _connection.ExecuteQuery(elementType, visitor.CommandText, _transaction);
+            return ExecuteQuery(elementType, visitor.CommandText);
+        }
+
+        private IEnumerable ExecuteQuery(Type type, string command)
+        {
+            var listType = typeof(List<>).MakeGenericType(type);
+            var addMethod = listType.GetMethod("Add");
+            var list = Activator.CreateInstance(listType);
+
+            using (var cmd = new SqlCommand(command, _connection))
+            {
+                cmd.Transaction = _transaction;
+                var reader = cmd.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    var dict = new Dictionary<string, object>();
+                    for (var i = 0; i < reader.FieldCount; i++)
+                    {
+                        dict.Add(reader.GetName(i), reader.GetValue(i));
+                    }
+
+                    var instance = MapType(type, dict);
+                    addMethod.Invoke(list, new[] { instance });
+                }
+                reader.Close();
+            }
+            return (IEnumerable)list;
+        }
+
+        private T ExecuteScalar<T>(string command)
+        {
+            using (var cmd = new SqlCommand(command, _connection))
+            {
+                return (T)cmd.ExecuteScalar();
+            }
         }
 
         public override void Dispose()

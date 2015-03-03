@@ -8,5 +8,11 @@ namespace Neurotoxin.Norm.Mappers
         public Int64Mapper() : base(typeof(Int64), new BigIntAttribute())
         {
         }
+
+        public override object MapFromSql(object value)
+        {
+            if (value is int) return Convert.ToInt64(value);
+            return base.MapFromSql(value);
+        }
     }
 }

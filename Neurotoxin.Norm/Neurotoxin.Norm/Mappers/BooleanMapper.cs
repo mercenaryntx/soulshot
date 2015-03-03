@@ -9,9 +9,9 @@ namespace Neurotoxin.Norm.Mappers
         {
         }
 
-        public override object MapToSql(object value)
+        public override string MapToSql(object value)
         {
-            return ((bool) value) ? 1 : 0;
+            return ((bool) value) ? "1" : "0";
         }
     }
 }

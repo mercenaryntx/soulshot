@@ -56,6 +56,9 @@ namespace Neurotoxin.Norm.Query
             var columnExpression = node as ColumnExpression;
             if (columnExpression != null) return VisitColumn(columnExpression);
 
+            var columnDefinitionExpression = node as ColumnDefinitionExpression;
+            if (columnDefinitionExpression != null) return VisitColumnDefinition(columnDefinitionExpression);
+
             var tableExpression = node as TableExpression;
             if (tableExpression != null) return VisitTable(tableExpression);
 
@@ -138,11 +141,14 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitInsert(InsertExpression node)
         {
-            _commandBuilder.Append("INSERT INTO ");
+            _commandBuilder.Append("INSERT INTO");
             Visit(node.Into);
             if (node.Values != null)
             {
+                var useAliasesTmp = _useAliases;
+                _useAliases = false;
                 Visit(node.Values);
+                _useAliases = useAliasesTmp;
             }
             else if (node.Select != null)
             {
@@ -191,6 +197,23 @@ namespace Neurotoxin.Norm.Query
         {
             var pattern = _useAliases ? " {0}.[{1}]" : " [{1}]";
             _commandBuilder.Append(string.Format(pattern, node.Alias, node.ColumnName));
+            return node;
+        }
+
+        protected virtual Expression VisitColumnDefinition(ColumnDefinitionExpression node)
+        {
+            _commandBuilder.Append("[");
+            _commandBuilder.Append(node.Column.ColumnName);
+            _commandBuilder.Append("] ");
+            _commandBuilder.Append(node.Column.ColumnType);
+            if (node.Column.IsIdentity) _commandBuilder.Append(" IDENTITY(1,1)");
+            if (!node.Column.IsNullable) _commandBuilder.Append(" NOT");
+            _commandBuilder.Append(" NULL");
+            if (node.Column.DefaultValue != null && !node.Column.IsIdentity)
+            {
+                _commandBuilder.Append(" DEFAULT ");
+                _commandBuilder.Append(_dataEngine.GetLiteral(node.Column.DefaultValue));
+            }
             return node;
         }
 

@@ -1,4 +1,5 @@
-﻿using Neurotoxin.Norm.Annotations;
+﻿using System;
+using Neurotoxin.Norm.Annotations;
 
 namespace Neurotoxin.Norm.Mappers
 {
@@ -6,6 +7,11 @@ namespace Neurotoxin.Norm.Mappers
     {
         public ByteArrayMapper() : base(typeof(byte[]), new VarbinaryAttribute())
         {
+        }
+
+        public override string MapToSql(object value)
+        {
+            throw new NotImplementedException();
         }
     }
 }

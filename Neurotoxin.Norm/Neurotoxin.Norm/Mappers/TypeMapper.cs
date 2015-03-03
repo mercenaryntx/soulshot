@@ -21,9 +21,9 @@ namespace Neurotoxin.Norm.Mappers
             throw new Exception("Invalid type: " + stringValue);
         }
 
-        public override object MapToSql(object value)
+        public override string MapToSql(object value)
         {
-            return ((Type)value).FullName;
+            return string.Format("'{0}'", ((Type)value).FullName);
         }
     }
 }

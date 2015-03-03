@@ -47,18 +47,27 @@ namespace Neurotoxin.Norm.Query
 
         public TResult Execute<TResult>(Expression expression)
         {
-            throw new NotImplementedException();
-            //return (TResult)ExecuteImp(expression, typeof(TResult));
-            ////TODO: (typeof(TResult).Name == "IEnumerable`1");
-            //var isEnumerable = false;
-            //return (TResult)SqlQueryContext.Execute(expression, isEnumerable);
+            var elementType = TypeSystem.GetElementType(expression.Type);
+            var list = Select(expression);
+            if (typeof (TResult) == elementType)
+            {
+                var enumerator = list.GetEnumerator();
+                enumerator.MoveNext();
+                return (TResult)enumerator.Current;
+            }
+            return (TResult)list;
         }
 
         public List<T> Select<T>(Expression expression)
         {
+            return (List<T>)Select(expression);
+        }
+
+        private IEnumerable Select(Expression expression)
+        {
             var elementType = TypeSystem.GetElementType(expression.Type);
-            var sqlExpression = ExecuteImp(expression, typeof (SelectExpression));
-            return (List<T>)DataEngine.Execute(elementType, sqlExpression);
+            var sqlExpression = ExecuteImp(expression, typeof(SelectExpression));
+            return DataEngine.Execute(elementType, sqlExpression);
         }
 
         public void Delete(Expression expression)

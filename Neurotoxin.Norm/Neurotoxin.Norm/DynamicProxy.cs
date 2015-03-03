@@ -23,7 +23,7 @@ namespace Neurotoxin.Norm
         internal DynamicProxy(string assemblyName)
         {
             var name = new AssemblyName(assemblyName);
-            _assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndSave);
+            _assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(name, AssemblyBuilderAccess.RunAndCollect);
             _moduleBuilder = _assemblyBuilder.DefineDynamicModule(assemblyName, string.Format("{0}.dll", assemblyName));
         }
 
@@ -51,20 +51,25 @@ namespace Neurotoxin.Norm
             });
             var proxyType = typeBuilder.CreateType();
             _cache[baseType] = proxyType;
-            _assemblyBuilder.Save("Foobar.dll");
+            //_assemblyBuilder.Save("Foobar.dll");
             return proxyType;
         }
 
-        internal TBase Create<TBase>() //where TBase : class
+        internal TBase Create<TBase>()
         {
-            var proxyType = GetProxyType(typeof(TBase));
-            return (TBase)Activator.CreateInstance(proxyType);
+            return (TBase)Create(typeof(TBase));
         }
 
-        internal TBase Wrap<TBase>(TBase wrappee) //where TBase : class
+        internal object Create(Type baseType)
         {
-            var baseType = typeof(TBase);
-            var proxy = Create<TBase>();
+            var proxyType = GetProxyType(baseType);
+            return Activator.CreateInstance(proxyType);
+        }
+
+        internal TBase Wrap<TBase>(TBase wrappee)
+        {
+            var baseType = wrappee.GetType();
+            var proxy = (TBase)Create(baseType);
             foreach (var property in baseType.GetProperties())
             {
                 if (!property.CanWrite) continue;

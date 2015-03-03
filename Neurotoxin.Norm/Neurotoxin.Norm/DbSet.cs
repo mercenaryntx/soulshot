@@ -51,10 +51,15 @@ namespace Neurotoxin.Norm
             Expression = Expression.Constant(this);
         }
 
-        public TEntity Add(TEntity entity, EntityState state = EntityState.Added)
+        public TEntity Add(TEntity entity)
+        {
+            return Add(entity, EntityState.Added);
+        }
+
+        internal TEntity Add(TEntity entity, EntityState state)
         {
             var proxy = entity as IProxy ?? (IProxy)DynamicProxy.Instance.Wrap(entity);
-            entity = (TEntity) proxy;
+            entity = (TEntity)proxy;
             _cachedEntities.Add(entity);
             proxy.State = state;
             return entity;
@@ -67,6 +72,7 @@ namespace Neurotoxin.Norm
 
         public void SaveChanges()
         {
+            if (_cachedEntities.All(e => ((IProxy)e).State == EntityState.Unchanged)) return;
             _dataEngine.CommitChanges(_cachedEntities, _table, Columns);
         }
 

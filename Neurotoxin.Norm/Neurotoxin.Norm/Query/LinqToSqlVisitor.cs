@@ -35,6 +35,7 @@ namespace Neurotoxin.Norm.Query
                 Expression expression = new TableExpression(_table, a.Value);
                 from = from == null ? expression : new ListingExpression(from, expression);
             }
+            if (from == null) from = new TableExpression(_table);
 
             if (_targetExpression == typeof(SelectExpression))
             {
@@ -117,7 +118,7 @@ namespace Neurotoxin.Norm.Query
             {
                 var mi = memberExpression.Member;
                 var declaringType = mi.DeclaringType;
-                var column = _columnMapping.SingleOrDefault(c => c.DeclaringTypes.Contains(declaringType) && c.PropertyName == mi.Name);
+                var column = _columnMapping.SingleOrDefault(c => c.DescribesProperty(mi));
                 if (column != null)
                 {
                     var alias = GetAlias(declaringType);

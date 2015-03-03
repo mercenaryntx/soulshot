@@ -10,6 +10,7 @@ namespace Neurotoxin.Norm
     public abstract class DbContext : IDisposable
     {
         private readonly IDataEngine _dataEngine;
+        private readonly List<PropertyInfo> _dbSetProperties;
 
         protected DbContext(string connectionString)
         {
@@ -18,7 +19,8 @@ namespace Neurotoxin.Norm
             migrationHistory.Init();
 
             var iDbSet = typeof(IDbSet);
-            foreach (var pi in GetType().GetProperties().Where(pi => iDbSet.IsAssignableFrom(pi.PropertyType)))
+            _dbSetProperties = GetType().GetProperties().Where(pi => iDbSet.IsAssignableFrom(pi.PropertyType)).ToList();
+            foreach (var pi in _dbSetProperties)
             {
                 var table = GetTableDefinition(pi);
                 var columns = migrationHistory.Where(e => e.TableName == table.Name && e.TableSchema == table.Schema).ToList();
@@ -49,6 +51,15 @@ namespace Neurotoxin.Norm
             var instance = (IDbSet)ctor.Invoke(new object[] { table, columns, _dataEngine });
             instance.Init();
             return instance;
+        }
+
+        public void SaveChanges()
+        {
+            foreach (var pi in _dbSetProperties)
+            {
+                var dbSet = (IDbSet)pi.GetValue(this);
+                dbSet.SaveChanges();
+            }
         }
 
         public void Dispose()

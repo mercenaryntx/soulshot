@@ -12,7 +12,7 @@ namespace Neurotoxin.Norm.Tests
     public class DbSetTests
     {
         [TestMethod]
-        public void Mapping01()
+        public void ColumnMapping()
         {
             var table = new TableAttribute("Lorem", "ipsum");
             var columns = ColumnMapper.Map<EntityBase>(table);
@@ -84,11 +84,27 @@ namespace Neurotoxin.Norm.Tests
         }
 
         [TestMethod]
-        public void ContextCreation()
+        public void WriteAndReadBack()
         {
             using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
             {
+                var guid = Guid.NewGuid();
+                var newEntity = new ClassD
+                {
+                    EntityId = guid,
+                    Name = "Lorem ipsum",
+                    NumberOfSomething = 5
+                };
+                context.TestTable.Add(newEntity);
+                context.SaveChanges();
 
+                var storedEntity = context.TestTable.SingleOrDefault(e => e.EntityId == guid);
+                Assert.IsInstanceOfType(storedEntity, typeof(ClassD));
+
+                var classD = (ClassD) storedEntity;
+                Assert.AreEqual(classD.Name, newEntity.Name);
+                Assert.AreEqual(classD.NumberOfSomething, newEntity.NumberOfSomething);
+                Assert.AreNotEqual(classD.Id, 0);
             }
         }
     }

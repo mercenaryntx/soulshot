@@ -7,5 +7,6 @@ namespace Neurotoxin.Norm
         List<ColumnInfo> Columns { get; }
 
         void Init();
+        void SaveChanges();
     }
 }

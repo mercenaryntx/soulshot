@@ -8,5 +8,10 @@ namespace Neurotoxin.Norm.Mappers
         public StringMapper() : base(typeof(String), new NVarcharAttribute(true))
         {
         }
+
+        public override string MapToSql(object value)
+        {
+            return string.Format("N'{0}'", value);
+        }
     }
 }

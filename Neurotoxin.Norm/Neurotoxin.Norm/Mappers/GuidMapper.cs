@@ -8,5 +8,10 @@ namespace Neurotoxin.Norm.Mappers
         public GuidMapper() : base(typeof(Guid), new UniqueIdentifierAttribute())
         {
         }
+
+        public override string MapToSql(object value)
+        {
+            return string.Format("'{0}'", value);
+        }
     }
 }

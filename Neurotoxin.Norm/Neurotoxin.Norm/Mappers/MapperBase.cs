@@ -16,14 +16,15 @@ namespace Neurotoxin.Norm.Mappers
 
         public virtual object MapFromSql(object value)
         {
+            if (value is DBNull) return null;
             if (value.GetType() == PropertyType) return value;
             throw new NotSupportedException(string.Format("Not supported mapping: {0} -> {1}", value.GetType(), PropertyType));
         }
 
-        public virtual object MapToSql(object value)
+        public virtual string MapToSql(object value)
         {
             //TODO
-            return value;
+            return value.ToString();
         }
     }
 }

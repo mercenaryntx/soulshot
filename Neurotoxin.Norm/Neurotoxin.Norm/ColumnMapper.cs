@@ -13,6 +13,7 @@ namespace Neurotoxin.Norm
         public const string DiscriminatorColumnName = "Discriminator";
         public static readonly Dictionary<Type, ColumnTypeAttribute> DefaultTypeAttributes = new Dictionary<Type, ColumnTypeAttribute>();
         public static readonly Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase> Mappers = new Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase>();
+        public static readonly Dictionary<Type, List<ColumnInfo>> Cache = new Dictionary<Type, List<ColumnInfo>>();
 
         static ColumnMapper()
         {
@@ -41,7 +42,8 @@ namespace Neurotoxin.Norm
                     TableName = table.Name,
                     TableSchema = table.Schema,
                     ColumnName = DiscriminatorColumnName,
-                    ColumnType = DefaultTypeAttributes[typeof(string)].ToString()
+                    ColumnType = DefaultTypeAttributes[typeof(string)].ToString(),
+                    IsDiscriminatorColumn = true
                 });
 
             foreach (var pi in types.SelectMany(t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)))
@@ -61,41 +63,57 @@ namespace Neurotoxin.Norm
                         continue;
                     }
                 }
+
+                //TODO: proper nullable check
+                var isNullable = pi.PropertyType.IsClass;
+                object defaultValue = isNullable ? null : Activator.CreateInstance(pi.PropertyType);
                 columns.Add(columnName, new ColumnInfo
                 {
                     TableName = table.Name,
                     TableSchema = table.Schema,
                     ColumnName = columnName,
                     ColumnType = columnType,
-//                    BaseType = pi.DeclaringType,
                     DeclaringTypes = new List<Type> { pi.DeclaringType },
                     PropertyName = pi.Name,
-                    IsNullable = !pi.PropertyType.IsValueType,
-                    IsIdentity = pi.HasAttribute<KeyAttribute>()
+                    IsNullable = isNullable,
+                    IsIdentity = pi.HasAttribute<KeyAttribute>(),
+                    DefaultValue = defaultValue
                 });
             }
 
-            return columns.Values.ToList();
+            var list = columns.Values.ToList();
+            Cache[baseType] = list;
+            return list;
         }
 
         public static object MapToPropertyValue(object value, PropertyInfo pi)
         {
             var columnType = GetColumnType(pi);
-            return MapToPropertyValue(value, pi.PropertyType, columnType);
+            var mapper = GetMapper(pi.PropertyType, columnType);
+            return mapper.MapFromSql(value);
         }
 
-        public static Type MapType(string value)
+        public static string MapToSqlValue(object value)
+        {
+            if (value == null) return "null";
+            var type = value.GetType();
+            var columnType = GetDefaultColumnType(type);
+            var mapper = GetMapper(type, columnType);
+            return mapper.MapToSql(value);
+        }
+
+        public static Type MapType(object value)
         {
             var columnType = GetDefaultColumnType(typeof(string));
-            return (Type)MapToPropertyValue(value, typeof(Type), columnType);
+            var mapper = GetMapper(typeof(Type), columnType);
+            return (Type)mapper.MapFromSql(value);
         }
 
-        private static object MapToPropertyValue(object value, Type propertyType, ColumnTypeAttribute columnType)
+        private static MapperBase GetMapper(Type propertyType, ColumnTypeAttribute columnType)
         {
             var key = new KeyValuePair<Type, ColumnTypeAttribute>(propertyType, columnType);
             if (!Mappers.ContainsKey(key)) throw new Exception(string.Format("Mapper not found: {0} <-> {1}", key.Key, key.Value));
-            var mapper = Mappers[key];
-            return mapper.MapFromSql(value);
+            return Mappers[key];
         }
 
         private static bool IsIgnorable(PropertyInfo pi)

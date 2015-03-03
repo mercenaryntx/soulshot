@@ -37,7 +37,7 @@ namespace Neurotoxin.Norm
             var pk = new ConstraintExpression(Expression.Constant("PK_" + table.FullName), ConstraintType.PrimaryKey | ConstraintType.Clustered);
             foreach (var column in columns)
             {
-                create.AddColumn(new SqlPartExpression(column.DefinitionString));
+                create.AddColumn(new ColumnDefinitionExpression(column));
                 if (column.IsIdentity)
                 {
                     //TODO: proper PK and sort order handling
@@ -88,13 +88,24 @@ namespace Neurotoxin.Norm
         {
             var values = new ValuesExpression();
             var insert = new InsertExpression(new TableExpression(table)) { Values = values };
-            var type = entity.GetType();
-            //TODO: handle identity insert
-            foreach (var column in columns.Where(c => !c.IsIdentity))
+            var type = entity.GetType().BaseType;
+            var discriminator = columns.SingleOrDefault(c => c.IsDiscriminatorColumn);
+            if (discriminator != null)
+            {
+                values.AddColumn(discriminator.ToColumnExpression());
+                values.AddValue(Expression.Constant(type.FullName));
+            }
+
+            foreach (var pi in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
                 try
                 {
-                    var pi = type.GetProperty(column.PropertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                    var column = columns.SingleOrDefault(c => c.DescribesProperty(pi));
+                    if (column == null) continue;
+
+                    //TODO: support identity insert
+                    if (column.IsIdentity) continue;
+
                     values.AddColumn(column.ToColumnExpression());
                     values.AddValue(Expression.Constant(pi.GetValue(entity)));
                 }
@@ -103,6 +114,7 @@ namespace Neurotoxin.Norm
                     Debugger.Break();
                 }
             }
+
             ExecuteNonQuery(insert);
         }
 
@@ -118,7 +130,7 @@ namespace Neurotoxin.Norm
             foreach (var property in entity.DirtyProperties)
             {
                 var pi = type.GetProperty(property);
-                var column = columns.First(c => c.DeclaringTypes.Contains(pi.DeclaringType) && c.PropertyName == property);
+                var column = columns.First(c => c.DescribesProperty(pi));
                 update.AddSet(new SetExpression(column.ToColumnExpression(), Expression.Constant(pi.GetValue(entity))));
             }
             ExecuteNonQuery(update);
@@ -137,6 +149,34 @@ namespace Neurotoxin.Norm
         public IEnumerable<TEntity> Execute<TEntity>(Expression expression)
         {
             return (IEnumerable<TEntity>)Execute(typeof(TEntity), expression);
+        }
+
+        protected object MapType(Type type, Dictionary<string, object> values)
+        {
+            var entityType = type;
+            var first = values.First();
+            var skip = 0;
+            if (first.Key == ColumnMapper.DiscriminatorColumnName)
+            {
+                entityType = ColumnMapper.MapType(first.Value);
+                skip = 1;
+            }
+
+            var columns = ColumnMapper.Cache[type];
+            var proxyType = DynamicProxy.Instance.GetProxyType(entityType);
+            var instance = Activator.CreateInstance(proxyType);
+
+            foreach (var kvp in values.Skip(skip))
+            {
+                var name = kvp.Key;
+                var value = kvp.Value;
+
+                var propertyName = columns.Single(c => c.ColumnName == name).PropertyName;
+                var pi = entityType.GetProperty(propertyName);
+                if (pi == null || !pi.CanWrite) continue;
+                pi.SetValue(instance, ColumnMapper.MapToPropertyValue(value, pi));
+            }
+            return instance;
         }
 
         public abstract bool TableExists(TableAttribute table);

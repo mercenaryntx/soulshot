@@ -8,5 +8,10 @@ namespace Neurotoxin.Norm.Mappers
         public DateTimeMapper() : base(typeof(DateTime), new DateTime2Attribute())
         {
         }
+
+        public override string MapToSql(object value)
+        {
+            return string.Format("'{0}'", value);
+        }
     }
 }

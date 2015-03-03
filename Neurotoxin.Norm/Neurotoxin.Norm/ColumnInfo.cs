@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
@@ -16,36 +15,13 @@ namespace Neurotoxin.Norm
         public string TableSchema { get; set; }
         public string ColumnName { get; set; }
         public string ColumnType { get; set; }
-        //public Type BaseType { get; set; }
         public string PropertyName { get; set; }
         public bool IsNullable { get; set; }
         public bool IsIdentity { get; set; }
 
-        [Ignore]
-        public List<Type> DeclaringTypes { get; set; }
-
-        [Ignore]
-        public string DefinitionString
-        {
-            get
-            {
-                var sb = new StringBuilder();
-                sb.Append("[");
-                sb.Append(ColumnName);
-                sb.Append("] ");
-                sb.Append(ColumnType);
-                if (IsIdentity) sb.Append(" IDENTITY(1,1)");
-                if (!IsNullable) sb.Append(" NOT");
-                sb.Append(" NULL");
-                return sb.ToString();
-            }
-        }
-
-        //[Ignore]
-        //public PropertyInfo Property
-        //{
-        //    get { return BaseType.GetProperty(PropertyName); }
-        //}
+        [Ignore] public object DefaultValue { get; set; }
+        [Ignore] public bool IsDiscriminatorColumn { get; set; }
+        [Ignore] public List<Type> DeclaringTypes { get; set; }
 
         public override bool Equals(object obj)
         {
@@ -86,7 +62,8 @@ namespace Neurotoxin.Norm
         public ColumnExpression ToColumnExpression(string alias = null)
         {
             //return new ColumnExpression(ColumnName, alias, Property.PropertyType);
-            return new ColumnExpression(ColumnName, alias, DeclaringTypes[0].GetProperty(PropertyName).PropertyType);
+            var type = PropertyName == null ? typeof (Type) : DeclaringTypes[0].GetProperty(PropertyName).PropertyType;
+            return new ColumnExpression(ColumnName, alias, type);
         }
 
         public BinaryExpression ToEqualExpression(object obj, string alias = null)
@@ -98,6 +75,22 @@ namespace Neurotoxin.Norm
         public object GetValue(object obj)
         {
             return obj.GetType().GetProperty(PropertyName).GetValue(obj);
+        }
+
+        public bool DescribesProperty(MemberInfo property)
+        {
+            if (DeclaringTypes == null || PropertyName == null) return false;
+            if (PropertyName != property.Name) return false;
+
+            var declaringType = property.DeclaringType;
+            do
+            {
+                if (DeclaringTypes.Contains(declaringType)) return true;
+                declaringType = declaringType.BaseType;
+            } 
+            while (declaringType != null);
+
+            return false;
         }
     }
 }

@@ -8,6 +8,7 @@ namespace Neurotoxin.Norm.Query
         public Expression From { get; set; }
         public Expression Where { get; set; }
         public Expression Top { get; set; }
+        public OrderByExpression OrderBy { get; set; }
 
         public SelectExpression(Expression from = null)
         {

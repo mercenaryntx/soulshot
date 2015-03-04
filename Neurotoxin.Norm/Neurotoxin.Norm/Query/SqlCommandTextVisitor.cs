@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -80,6 +81,15 @@ namespace Neurotoxin.Norm.Query
             var containsExpression = node as ContainsExpression;
             if (containsExpression != null) return VisitContains(containsExpression);
 
+            var likeExpression = node as LikeExpression;
+            if (likeExpression != null) return VisitLike(likeExpression);
+
+            var orderByExpression = node as OrderByExpression;
+            if (orderByExpression != null) return VisitOrderBy(orderByExpression);
+
+            var columnOrderExpression = node as ColumnOrderExpression;
+            if (columnOrderExpression != null) return VisitColumnOrder(columnOrderExpression);
+
             return base.Visit(node);
         }
 
@@ -155,6 +165,7 @@ namespace Neurotoxin.Norm.Query
                 Append("WHERE");
                 Visit(node.Where);
             }
+            Visit(node.OrderBy);
             return node;
         }
 
@@ -309,6 +320,28 @@ namespace Neurotoxin.Norm.Query
             Append("IN (");
             Visit(node.Content);
             Append(")", false);
+            return node;
+        }
+
+        protected virtual Expression VisitLike(LikeExpression node)
+        {
+            Visit(node.Column);
+            Append("LIKE");
+            Visit(node.Value);
+            return node;
+        }
+
+        protected virtual Expression VisitOrderBy(OrderByExpression node)
+        {
+            Append("ORDER BY");
+            Visit(node.By);
+            return node;
+        }
+
+        protected virtual Expression VisitColumnOrder(ColumnOrderExpression node)
+        {
+            Visit(node.Column);
+            Append(node.Direction == ListSortDirection.Ascending ? "ASC" : "DESC");
             return node;
         }
 

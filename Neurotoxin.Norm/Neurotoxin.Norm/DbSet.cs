@@ -9,7 +9,7 @@ using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
 {
-    public class DbSet<TEntity> : IDbSet, IQueryable<TEntity>
+    public class DbSet<TEntity> : IDbSet, IOrderedQueryable<TEntity>
     {
         private readonly TableAttribute _table;
         private readonly IDataEngine _dataEngine;

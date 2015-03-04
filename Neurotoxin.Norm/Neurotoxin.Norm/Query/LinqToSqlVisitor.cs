@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text;
 using Neurotoxin.Norm.Annotations;
 
 namespace Neurotoxin.Norm.Query
@@ -13,6 +15,7 @@ namespace Neurotoxin.Norm.Query
     {
         private SelectExpression _select;
         private Expression _where;
+        private OrderByExpression _orderBy;
 
         private readonly TableAttribute _table;
         private readonly List<ColumnInfo> _columnMapping;
@@ -44,6 +47,7 @@ namespace Neurotoxin.Norm.Query
                 if (select.Selection == null) select.Selection = new AsteriskExpression();
                 if (select.From == null) select.From = from;
                 select.Where = _where;
+                select.OrderBy = _orderBy;
                 return select;
             }
             if (_targetExpression == typeof(DeleteExpression))
@@ -72,34 +76,37 @@ namespace Neurotoxin.Norm.Query
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
+            var expression = BuildExpression(node.Arguments[1]);
             switch (node.Method.Name)
             {
                 case "Where":
-                {
-                    var expression = BuildExpression(node.Arguments[1]);
                     _where = _where == null ? expression : new WhereExpression(_where, expression);
                     break;
-                }
                 case "Select":
-                {
                     if (_select == null) _select = new SelectExpression();
-                    var expression = BuildExpression(node.Arguments[1]);
                     _select.Selection = _select.Selection == null ? expression : new ListingExpression(_select.Selection, expression);
                     break;
-                }
                 case "Count":
-                {
                     _select = new SelectExpression {Selection = new CountExpression()};
                     break;
-                }
                 case "Take":
-                {
                     if (_select == null) _select = new SelectExpression();
                     _select.Top = node.Arguments[1];
                     break;
-                }
                 case "Skip":
                     throw new NotImplementedException();
+                case "OrderBy":
+                case "ThenBy":
+                    if (_orderBy == null) _orderBy = new OrderByExpression();
+                    _orderBy.AddColumn(expression, ListSortDirection.Ascending);
+                    break;
+                case "ThenByDescending":
+                case "OrderByDescending":
+                    if (_orderBy == null) _orderBy = new OrderByExpression();
+                    _orderBy.AddColumn(expression, ListSortDirection.Descending);
+                    break;
+                default:
+                    throw new NotSupportedException("Not supported method: " + node.Method.Name);
             }
             return base.VisitMethodCall(node);
         }
@@ -175,28 +182,59 @@ namespace Neurotoxin.Norm.Query
             var methodCallExpression = expression as MethodCallExpression;
             if (methodCallExpression != null)
             {
-                if (methodCallExpression.Method.Name == "Contains")
+                switch (methodCallExpression.Method.Name)
                 {
-                    var containsExpression = new ContainsExpression
-                    {
-                        Column = (ColumnExpression) BuildExpression(methodCallExpression.Arguments[1])
-                    };
+                    case "Contains":
+                        if (methodCallExpression.Method.DeclaringType == typeof (string)) 
+                            return BuildLikeExpression(methodCallExpression, true, true);
 
-                    var constant = (ConstantExpression)BuildExpression(methodCallExpression.Arguments[0]);
-                    var enumerable = constant.Value as IEnumerable;
-                    if (enumerable != null)
-                    {
-                        foreach (var value in enumerable)
-                        {
-                            containsExpression.AddContent(Expression.Constant(value));
-                        }
-                        return containsExpression;
-                    }
+                        return BuildContainsExpression(methodCallExpression);
+                    case "StartsWith":
+                        return BuildLikeExpression(methodCallExpression, true, false);
+                    case "EndsWith":
+                        return BuildLikeExpression(methodCallExpression, false, true);
+                    default:
+                        throw new NotSupportedException(methodCallExpression.Method.Name);
                 }
-                throw new NotSupportedException(methodCallExpression.Method.Name);
             }
 
             throw new NotSupportedException(expression.GetType().Name);
+        }
+
+        private ContainsExpression BuildContainsExpression(MethodCallExpression methodCallExpression)
+        {
+            var containsExpression = new ContainsExpression
+            {
+                Column = (ColumnExpression)BuildExpression(methodCallExpression.Arguments[1])
+            };
+
+            var constant = (ConstantExpression)BuildExpression(methodCallExpression.Arguments[0]);
+            var enumerable = constant.Value as IEnumerable;
+            if (enumerable == null) throw new NotSupportedException("Invalid type: " + constant.Value.GetType());
+
+            foreach (var value in enumerable)
+            {
+                containsExpression.AddContent(Expression.Constant(value));
+            }
+            return containsExpression;
+        }
+
+        private LikeExpression BuildLikeExpression(MethodCallExpression methodCallExpression, bool leftWildcard, bool rightWildcard)
+        {
+            var constant = (ConstantExpression)BuildExpression(methodCallExpression.Arguments[0]);
+            var str = constant.Value as string;
+            if (str == null) throw new NotSupportedException("Invalid type: " + constant.Value.GetType());
+
+            var sb = new StringBuilder();
+            if (leftWildcard) sb.Append("%");
+            sb.Append(str);
+            if (rightWildcard) sb.Append("%");
+
+            return new LikeExpression
+            {
+                Column = (ColumnExpression)BuildExpression(methodCallExpression.Object),
+                Value = Expression.Constant(sb.ToString())
+            };
         }
 
         private string GetAlias(Type type)

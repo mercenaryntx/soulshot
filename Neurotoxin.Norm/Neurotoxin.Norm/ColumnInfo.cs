@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
@@ -22,6 +23,16 @@ namespace Neurotoxin.Norm
         [Ignore] public object DefaultValue { get; set; }
         [Ignore] public bool IsDiscriminatorColumn { get; set; }
         [Ignore] public List<Type> DeclaringTypes { get; set; }
+
+        [Ignore]
+        public Type PropertyType
+        {
+            get
+            {
+                if (DeclaringTypes == null || PropertyName == null) return null;
+                return DeclaringTypes.First().GetProperty(PropertyName).PropertyType;
+            }
+        }
 
         public override bool Equals(object obj)
         {

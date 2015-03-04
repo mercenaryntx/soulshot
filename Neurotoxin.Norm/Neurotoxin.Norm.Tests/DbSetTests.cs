@@ -283,5 +283,53 @@ namespace Neurotoxin.Norm.Tests
             }
         }
 
+        [TestMethod]
+        public void SelectStartsWith()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.Where(e => e.Name.StartsWith("Lorem ipsum")).ToList();
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void SelectEndsWith()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.Where(e => e.Name.EndsWith("ipsum")).ToList();
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void SelectStringContains()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.Where(e => e.Name.Contains("ipsum")).ToList();
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void SelectOrderBy()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.OrderByDescending(e => e.Id).ThenBy(e => e.Name).ToList();
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
     }
 }

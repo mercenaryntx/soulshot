@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
@@ -67,7 +68,7 @@ namespace Neurotoxin.Norm
             foreach (var column in columns.Where(c => c.IsIdentity))
             {
                 //TODO: proper PK and sort order handling
-                pk.AddColumn(new SqlPartExpression(string.Format("[{0}] ASC", column.ColumnName)));
+                pk.AddColumn(new ColumnOrderExpression(new ColumnExpression(column.ColumnName, string.Empty, column.PropertyType), ListSortDirection.Ascending));
             }
             if (pk.Columns != null) result.Add(pk);
 

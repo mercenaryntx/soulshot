@@ -7,6 +7,7 @@ namespace Neurotoxin.Norm.Query
         public Expression Into { get; set; }
         public ValuesExpression Values { get; set; }
         public SelectExpression Select { get; set; }
+        public bool IsIdentityInsertEnabled { get; set; }
 
         public InsertExpression(Expression @into = null)
         {

@@ -36,6 +36,14 @@ namespace Neurotoxin.Norm.Query
 
         public IQueryable<TElement> CreateQuery<TElement>(Expression expression)
         {
+            var type = typeof(TElement);
+            var mapper = ColumnMapper.TryGetMapper(type);
+            if (mapper != null)
+            {
+                var list = (List<TElement>) Select(expression);
+                return list.AsQueryable();
+            }
+
             return new DbSet<TElement>(this, expression);
         }
 
@@ -47,6 +55,15 @@ namespace Neurotoxin.Norm.Query
 
         public TResult Execute<TResult>(Expression expression)
         {
+            var type = typeof(TResult);
+            var mapper = ColumnMapper.TryGetMapper(type);
+            if (mapper != null)
+            {
+                var sqlExpression = ExecuteImp(expression, typeof(SelectExpression));
+                var scalar = DataEngine.ExecuteScalar(sqlExpression, type);
+                return (TResult)scalar;
+            }
+            
             var elementType = TypeSystem.GetElementType(expression.Type);
             var list = Select(expression);
             if (typeof (TResult) == elementType)
@@ -67,7 +84,7 @@ namespace Neurotoxin.Norm.Query
         {
             var elementType = TypeSystem.GetElementType(expression.Type);
             var sqlExpression = ExecuteImp(expression, typeof(SelectExpression));
-            return DataEngine.Execute(elementType, sqlExpression);
+            return DataEngine.ExecuteQuery(elementType, sqlExpression);
         }
 
         public void Delete(Expression expression)

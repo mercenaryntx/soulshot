@@ -14,7 +14,7 @@ namespace Neurotoxin.Norm.Mappers
             ColumnType = columnType;
         }
 
-        public virtual object MapFromSql(object value)
+        public virtual object MapToType(object value)
         {
             if (value is DBNull) return null;
             if (value.GetType() == PropertyType) return value;

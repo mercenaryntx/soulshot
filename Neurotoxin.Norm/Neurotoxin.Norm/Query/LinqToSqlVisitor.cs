@@ -39,14 +39,14 @@ namespace Neurotoxin.Norm.Query
 
             if (_targetExpression == typeof(SelectExpression))
             {
-                var select = _select ?? new SelectExpression(from);
-                select.Selection = new AsteriskExpression();
+                var select = _select ?? new SelectExpression();
+                if (select.Selection == null) select.Selection = new AsteriskExpression();
+                if (select.From == null) select.From = from;
                 select.Where = _where;
                 return select;
             }
             if (_targetExpression == typeof(DeleteExpression))
             {
-                if (from == null) throw new NotSupportedException("From cannot be null");
                 if (from is ListingExpression) throw new NotSupportedException("Multiple from is not supported in case of Delete");
                 return new DeleteExpression(from) { Where = _where };
             }
@@ -71,19 +71,35 @@ namespace Neurotoxin.Norm.Query
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            if (node.Method.Name == "Where")
+            switch (node.Method.Name)
             {
-                var expression = BuildExpression(node.Arguments[1]);
-                _where = _where == null ? expression : new WhereExpression(_where, expression);
+                case "Where":
+                {
+                    var expression = BuildExpression(node.Arguments[1]);
+                    _where = _where == null ? expression : new WhereExpression(_where, expression);
+                    break;
+                }
+                case "Select":
+                {
+                    if (_select == null) _select = new SelectExpression();
+                    var expression = BuildExpression(node.Arguments[1]);
+                    _select.Selection = _select.Selection == null ? expression : new ListingExpression(_select.Selection, expression);
+                    break;
+                }
+                case "Count":
+                {
+                    _select = new SelectExpression {Selection = new CountExpression()};
+                    break;
+                }
+                case "Take":
+                {
+                    if (_select == null) _select = new SelectExpression();
+                    _select.Top = node.Arguments[1];
+                    break;
+                }
+                case "Skip":
+                    throw new NotImplementedException();
             }
-
-            if (node.Method.Name == "Select")
-            {
-                if (_select == null) _select = new SelectExpression();
-                var expression = BuildExpression(node.Arguments[1]);
-                _select.Selection = _select.Selection == null ? expression : new ListingExpression(_select.Selection, expression);
-            }
-
             return base.VisitMethodCall(node);
         }
 

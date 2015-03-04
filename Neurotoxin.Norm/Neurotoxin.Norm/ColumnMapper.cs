@@ -86,14 +86,15 @@ namespace Neurotoxin.Norm
             return list;
         }
 
-        public static object MapToPropertyValue(object value, PropertyInfo pi)
+        public static object MapToType(object value, PropertyInfo pi = null)
         {
-            var columnType = GetColumnType(pi);
-            var mapper = GetMapper(pi.PropertyType, columnType);
-            return mapper.MapFromSql(value);
+            var type = pi != null ? pi.PropertyType : value.GetType();
+            var columnType = pi != null ? GetColumnType(pi) : GetDefaultColumnType(type);
+            var mapper = GetMapper(type, columnType);
+            return mapper.MapToType(value);
         }
 
-        public static string MapToSqlValue(object value)
+        public static string MapToSql(object value)
         {
             if (value == null) return "null";
             var type = value.GetType();
@@ -106,14 +107,30 @@ namespace Neurotoxin.Norm
         {
             var columnType = GetDefaultColumnType(typeof(string));
             var mapper = GetMapper(typeof(Type), columnType);
-            return (Type)mapper.MapFromSql(value);
+            return (Type)mapper.MapToType(value);
         }
 
-        internal static MapperBase GetMapper(Type propertyType, ColumnTypeAttribute columnType)
+        internal static MapperBase GetMapper(Type propertyType, ColumnTypeAttribute columnType = null)
         {
+            var mapper = TryGetMapper(propertyType, columnType);
+            if (mapper == null)
+            {
+                if (columnType == null) columnType = GetDefaultColumnType(propertyType);
+                throw new Exception(string.Format("Mapper not found: {0} <-> {1}", propertyType, columnType));
+            }
+            return mapper;
+        }
+
+        internal static MapperBase TryGetMapper(Type propertyType, ColumnTypeAttribute columnType = null)
+        {
+            if (columnType == null)
+            {
+                if (propertyType.IsEnum) propertyType = typeof(Enum);
+                if (!DefaultTypeAttributes.ContainsKey(propertyType)) return null;
+                columnType = DefaultTypeAttributes[propertyType];
+            }
             var key = new KeyValuePair<Type, ColumnTypeAttribute>(propertyType, columnType);
-            if (!Mappers.ContainsKey(key)) throw new Exception(string.Format("Mapper not found: {0} <-> {1}", key.Key, key.Value));
-            return Mappers[key];
+            return Mappers.ContainsKey(key) ? Mappers[key] : null;
         }
 
         private static bool IsIgnorable(PropertyInfo pi)

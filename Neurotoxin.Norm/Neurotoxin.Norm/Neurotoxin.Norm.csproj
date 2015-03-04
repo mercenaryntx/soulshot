@@ -113,10 +113,12 @@
     <Compile Include="IDbSet.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PropertyCollection.cs" />
+    <Compile Include="Query\AlterTableExpression.cs" />
     <Compile Include="Query\AsteriskExpression.cs" />
     <Compile Include="Query\ColumnDefinitionExpression.cs" />
     <Compile Include="Query\ConstraintExpression.cs" />
     <Compile Include="Query\ConstraintType.cs" />
+    <Compile Include="Query\CountExpression.cs" />
     <Compile Include="Query\DropTableExpression.cs" />
     <Compile Include="Query\CreateTableExpression.cs" />
     <Compile Include="Query\DeleteExpression.cs" />

@@ -7,7 +7,6 @@ using System.Linq.Expressions;
 using System.Reflection;
 using Neurotoxin.Norm.Annotations;
 using Neurotoxin.Norm.Extensions;
-using Neurotoxin.Norm.Mappers;
 using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
@@ -35,21 +34,45 @@ namespace Neurotoxin.Norm
         public virtual void CreateTable(TableAttribute table, IEnumerable<ColumnInfo> columns, bool generateConstraints = true)
         {
             var create = new CreateTableExpression(new TableExpression(table));
-            var pk = new ConstraintExpression(Expression.Constant("PK_" + table.FullName), ConstraintType.PrimaryKey | ConstraintType.Clustered);
+            
             foreach (var column in columns)
             {
                 create.AddColumn(new ColumnDefinitionExpression(column));
-                if (column.IsIdentity)
-                {
-                    //TODO: proper PK and sort order handling
-                    pk.AddColumn(new SqlPartExpression(string.Format("[{0}] ASC", column.ColumnName)));
-                }
             }
 
-            if (generateConstraints && pk.Columns != null) create.AddConstraint(pk);
-            //TODO: support indexes
-
+            if (generateConstraints)
+            {
+                foreach (var constraint in GetConstraints(table, columns, ExpressionType.Default))
+                {
+                    create.AddConstraint(constraint);
+                }
+            }
             ExecuteNonQuery(create);
+        }
+
+        public virtual void AppendConstraints(TableAttribute table, IEnumerable<ColumnInfo> columns)
+        {
+            var alter = new AlterTableExpression(new TableExpression(table));
+            foreach (var constraint in GetConstraints(table, columns, ExpressionType.Add))
+            {
+                alter.AddConstraint(constraint);
+            }
+            ExecuteNonQuery(alter);
+        }
+
+        private List<ConstraintExpression> GetConstraints(TableAttribute table, IEnumerable<ColumnInfo> columns, ExpressionType nodeType)
+        {
+            var result = new List<ConstraintExpression>();
+            var pk = new ConstraintExpression(Expression.Constant("PK_" + table.FullName), ConstraintType.PrimaryKey | ConstraintType.Clustered, nodeType);
+            foreach (var column in columns.Where(c => c.IsIdentity))
+            {
+                //TODO: proper PK and sort order handling
+                pk.AddColumn(new SqlPartExpression(string.Format("[{0}] ASC", column.ColumnName)));
+            }
+            if (pk.Columns != null) result.Add(pk);
+
+            //TODO: support indexes
+            return result;
         }
 
         public List<ColumnInfo> UpdateTable<TEntity>(TableAttribute table, List<ColumnInfo> storedColumns)
@@ -64,7 +87,7 @@ namespace Neurotoxin.Norm
                     CopyValues(table, tmpTable, actualColumns.Where(c => storedColumns.Any(cc => cc.ColumnName == c.ColumnName)).ToList());
                     DeleteTable(table);
                     RenameTable(tmpTable, table);
-                    //TODO: append constraints
+                    AppendConstraints(table, actualColumns);
                 }
             }
             else
@@ -80,6 +103,7 @@ namespace Neurotoxin.Norm
             var insert = new InsertExpression(new TableExpression(toTable)) { Select = select };
             foreach (var column in columns)
             {
+                if (column.IsIdentity) insert.IsIdentityInsertEnabled = true;
                 select.AddSelection(column.ToColumnExpression());
             }
             ExecuteNonQuery(insert);
@@ -104,11 +128,13 @@ namespace Neurotoxin.Norm
                     var column = columns.SingleOrDefault(c => c.DescribesProperty(pi));
                     if (column == null) continue;
 
-                    //TODO: support identity insert
-                    if (column.IsIdentity) continue;
+                    var value = pi.GetValue(entity);
+                    var defaultValue = Activator.CreateInstance(pi.PropertyType);
+
+                    if (column.IsIdentity && value != defaultValue) insert.IsIdentityInsertEnabled = true;
 
                     values.AddColumn(column.ToColumnExpression());
-                    values.AddValue(Expression.Constant(pi.GetValue(entity)));
+                    values.AddValue(Expression.Constant(value));
                 }
                 catch (Exception ex)
                 {
@@ -149,13 +175,22 @@ namespace Neurotoxin.Norm
 
         public IEnumerable<TEntity> Execute<TEntity>(Expression expression)
         {
-            return (IEnumerable<TEntity>)Execute(typeof(TEntity), expression);
+            return (IEnumerable<TEntity>)ExecuteQuery(typeof(TEntity), expression);
         }
 
         protected object MapType(Type type, Dictionary<string, object> values, Dictionary<string, string> columns)
         {
             var entityType = type;
             var first = values.First();
+
+            if (columns == null)
+            {
+                if (values.Count == 1)
+                    return ColumnMapper.MapToType(first.Value);
+                else 
+                    throw new NotSupportedException();
+            }
+
             var skip = 0;
             if (first.Key == ColumnMapper.DiscriminatorColumnName)
             {
@@ -175,7 +210,7 @@ namespace Neurotoxin.Norm
                 var pi = entityType.GetProperty(propertyName);
                 if (pi == null || !pi.CanWrite) continue;
 
-                var mappedValue = ColumnMapper.MapToPropertyValue(value, pi);
+                var mappedValue = ColumnMapper.MapToType(value, pi);
                 pi.SetValue(instance, mappedValue);
             }
             return instance;
@@ -187,7 +222,8 @@ namespace Neurotoxin.Norm
         public abstract void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns);
         public abstract string GetLiteral(object value);
         public abstract void ExecuteNonQuery(Expression expression);
-        public abstract IEnumerable Execute(Type elementType, Expression expression);
+        public abstract IEnumerable ExecuteQuery(Type elementType, Expression expression);
+        public abstract object ExecuteScalar(Expression expression, Type type);
         public abstract void Dispose();
     }
 }

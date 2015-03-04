@@ -177,7 +177,7 @@ namespace Neurotoxin.Norm.Tests
         }
 
         [TestMethod]
-        public void Read100()
+        public void ReadAll()
         {
             using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
             {
@@ -185,6 +185,43 @@ namespace Neurotoxin.Norm.Tests
                 sw.Start();
                 var entities = context.TestTable.ToList();
                 Console.WriteLine("{0} Select {1}", entities.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void Read100()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var entities = context.TestTable.Take(100).ToList();
+                Assert.AreEqual(entities.Count, 100);
+                Console.WriteLine("{0} Select {1}", entities.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void Count()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.Count();
+                Console.WriteLine("Count {0}: {1}", c, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void Select101()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.Select(e => e.Name).ToList();
+                Console.WriteLine("Count {0}: {1}", c, sw.Elapsed);
             }
         }
 

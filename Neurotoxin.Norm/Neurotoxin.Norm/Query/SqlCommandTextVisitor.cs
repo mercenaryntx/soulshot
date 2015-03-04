@@ -26,8 +26,14 @@ namespace Neurotoxin.Norm.Query
 
         public override Expression Visit(Expression node)
         {
+            var alterTableExpression = node as AlterTableExpression;
+            if (alterTableExpression != null) return VisitAlterTable(alterTableExpression);
+
             var createTableExpression = node as CreateTableExpression;
             if (createTableExpression != null) return VisitCreateTable(createTableExpression);
+
+            var dropTableExpression = node as DropTableExpression;
+            if (dropTableExpression != null) return VisitDropTable(dropTableExpression);
 
             var constraintExpression = node as ConstraintExpression;
             if (constraintExpression != null) return VisitConstraint(constraintExpression);
@@ -68,6 +74,9 @@ namespace Neurotoxin.Norm.Query
             var sqlPartExpression = node as SqlPartExpression;
             if (sqlPartExpression != null) return VisitSqlPart(sqlPartExpression);
 
+            var countExpression = node as CountExpression;
+            if (countExpression != null) return VisitCount(countExpression);
+
             return base.Visit(node);
         }
 
@@ -83,24 +92,58 @@ namespace Neurotoxin.Norm.Query
             return node;
         }
 
+        protected virtual Expression VisitAlterTable(AlterTableExpression node)
+        {
+            _commandBuilder.Append("ALTER TABLE");
+            Visit(node.Table);
+            Visit(node.Columns);
+            Visit(node.Constraints);
+            return node;
+        }
+
+        protected virtual Expression VisitDropTable(DropTableExpression node)
+        {
+            _commandBuilder.Append("DROP TABLE");
+            Visit(node.Table);
+            return node;
+        }
+
         protected virtual Expression VisitConstraint(ConstraintExpression node)
         {
+            switch (node.NodeType)
+            {
+                case ExpressionType.Add:
+                    _commandBuilder.Append(" ADD");
+                    break;
+                case ExpressionType.Subtract:
+                    _commandBuilder.Append(" DROP");
+                    break;
+            }
             _commandBuilder.Append(" CONSTRAINT [");
             _commandBuilder.Append(node.Name);
             _commandBuilder.Append("]");
-            if (node.Type.HasFlag(ConstraintType.PrimaryKey)) _commandBuilder.Append(" PRIMARY KEY");
-            if (node.Type.HasFlag(ConstraintType.ForeignKey)) throw new NotImplementedException();
-            if (node.Type.HasFlag(ConstraintType.Clustered)) _commandBuilder.Append(" CLUSTERED");
-            if (node.Type.HasFlag(ConstraintType.NonClustered)) throw new NotImplementedException();
-            _commandBuilder.Append("(");
-            Visit(node.Columns);
-            _commandBuilder.Append(")");
+
+            if (node.NodeType != ExpressionType.Subtract)
+            {
+                if (node.Type.HasFlag(ConstraintType.PrimaryKey)) _commandBuilder.Append(" PRIMARY KEY");
+                if (node.Type.HasFlag(ConstraintType.ForeignKey)) throw new NotImplementedException();
+                if (node.Type.HasFlag(ConstraintType.Clustered)) _commandBuilder.Append(" CLUSTERED");
+                if (node.Type.HasFlag(ConstraintType.NonClustered)) throw new NotImplementedException();
+                _commandBuilder.Append("(");
+                Visit(node.Columns);
+                _commandBuilder.Append(")");
+            }
             return node;
         }
 
         protected virtual Expression VisitSelect(SelectExpression node)
         {
             _commandBuilder.Append("SELECT");
+            if (node.Top != null)
+            {
+                _commandBuilder.Append(" TOP ");
+                Visit(node.Top);
+            }
             Visit(node.Selection);
             _commandBuilder.Append(" FROM");
             Visit(node.From);
@@ -141,6 +184,12 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitInsert(InsertExpression node)
         {
+            if (node.IsIdentityInsertEnabled)
+            {
+                _commandBuilder.Append("SET IDENTITY_INSERT ");
+                Visit(node.Into);
+                _commandBuilder.Append(" ON;\n");
+            }
             _commandBuilder.Append("INSERT INTO");
             Visit(node.Into);
             if (node.Values != null)
@@ -152,9 +201,19 @@ namespace Neurotoxin.Norm.Query
             }
             else if (node.Select != null)
             {
-                _commandBuilder.Append(" ");
+                _commandBuilder.Append(" (");
+                Visit(node.Select.Selection);
+                _commandBuilder.Append(") ");
                 Visit(node.Select);
             }
+
+            if (node.IsIdentityInsertEnabled)
+            {
+                _commandBuilder.Append("\n");
+                _commandBuilder.Append("SET IDENTITY_INSERT ");
+                Visit(node.Into);
+                _commandBuilder.Append(" OFF;");
+            }            
             return node;
         }
 
@@ -195,7 +254,7 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitColumn(ColumnExpression node)
         {
-            var pattern = _useAliases ? " {0}.[{1}]" : " [{1}]";
+            var pattern = _useAliases && !string.IsNullOrEmpty(node.Alias) ? " {0}.[{1}]" : " [{1}]";
             _commandBuilder.Append(string.Format(pattern, node.Alias, node.ColumnName));
             return node;
         }
@@ -233,6 +292,12 @@ namespace Neurotoxin.Norm.Query
         protected virtual Expression VisitSqlPart(SqlPartExpression node)
         {
             _commandBuilder.Append(node.Value);
+            return node;
+        }
+
+        protected virtual Expression VisitCount(CountExpression node)
+        {
+            _commandBuilder.Append(" COUNT(1)");
             return node;
         }
 

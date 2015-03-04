@@ -109,7 +109,14 @@ namespace Neurotoxin.Norm
         public override string GetLiteral(object value)
         {
             if (value == null) return "null";
-            return ColumnMapper.MapToSqlValue(value);
+            return ColumnMapper.MapToSql(value);
+        }
+
+        public override IEnumerable ExecuteQuery(Type elementType, Expression expression)
+        {
+            var visitor = new SqlCommandTextVisitor(this);
+            visitor.Visit(expression);
+            return ExecuteQuery(elementType, visitor.CommandText);
         }
 
         public override void ExecuteNonQuery(Expression expression)
@@ -119,25 +126,20 @@ namespace Neurotoxin.Norm
             ExecuteNonQuery(visitor.CommandText);
         }
 
-        private void ExecuteNonQuery(string command)
-        {
-            using (var cmd = new SqlCommand(command, _connection))
-            {
-                cmd.Transaction = _transaction;
-                cmd.ExecuteNonQuery();
-            }
-        }
-
-        public override IEnumerable Execute(Type elementType, Expression expression)
+        public override object ExecuteScalar(Expression expression, Type type)
         {
             var visitor = new SqlCommandTextVisitor(this);
             visitor.Visit(expression);
-            return ExecuteQuery(elementType, visitor.CommandText);
+            return ExecuteScalar(visitor.CommandText);
         }
 
         private IEnumerable ExecuteQuery(Type type, string command)
         {
-            var columns = ColumnMapper.Cache[type].ToDictionary(c => c.ColumnName, c => c.PropertyName);
+            Console.WriteLine(command);
+
+            var columns = ColumnMapper.Cache.ContainsKey(type)
+                ? ColumnMapper.Cache[type].ToDictionary(c => c.ColumnName, c => c.PropertyName)
+                : null;
             var listType = typeof(List<>).MakeGenericType(type);
             var addMethod = listType.GetMethod("Add");
             var list = Activator.CreateInstance(listType);
@@ -163,11 +165,30 @@ namespace Neurotoxin.Norm
             return (IEnumerable)list;
         }
 
-        private T ExecuteScalar<T>(string command)
+        private void ExecuteNonQuery(string command)
         {
+            Console.WriteLine(command);
+
             using (var cmd = new SqlCommand(command, _connection))
             {
-                return (T)cmd.ExecuteScalar();
+                cmd.Transaction = _transaction;
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private T ExecuteScalar<T>(string command)
+        {
+            return (T)ExecuteScalar(command);
+        }
+
+        private object ExecuteScalar(string command)
+        {
+            Console.WriteLine(command);
+
+            using (var cmd = new SqlCommand(command, _connection))
+            {
+                var value = cmd.ExecuteScalar();
+                return ColumnMapper.MapToType(value);
             }
         }
 

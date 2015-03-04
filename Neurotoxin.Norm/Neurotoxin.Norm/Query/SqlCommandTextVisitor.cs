@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
-using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Neurotoxin.Norm.Query
 {
@@ -90,6 +87,9 @@ namespace Neurotoxin.Norm.Query
             var columnOrderExpression = node as ColumnOrderExpression;
             if (columnOrderExpression != null) return VisitColumnOrder(columnOrderExpression);
 
+            var createIndexExpression = node as CreateIndexExpression;
+            if (createIndexExpression != null) return VisitCreateIndex(createIndexExpression);
+
             return base.Visit(node);
         }
 
@@ -133,18 +133,16 @@ namespace Neurotoxin.Norm.Query
                     break;
             }
             Append("CONSTRAINT [");
-            Visit(node.Name);
-            Append("]");
+            Append(node.Name);
+            Append("]", false);
 
             if (node.NodeType != ExpressionType.Subtract)
             {
-                if (node.Type.HasFlag(ConstraintType.PrimaryKey)) Append("PRIMARY KEY");
-                if (node.Type.HasFlag(ConstraintType.ForeignKey)) throw new NotImplementedException();
-                if (node.Type.HasFlag(ConstraintType.Clustered)) Append("CLUSTERED");
-                if (node.Type.HasFlag(ConstraintType.NonClustered)) throw new NotImplementedException();
+                VisitConstraintType(node.ConstraintType);
+                VisitIndexType(node.IndexType);
                 Append("(");
                 Visit(node.Columns);
-                Append(")");
+                Append(")", false);
             }
             return node;
         }
@@ -276,7 +274,7 @@ namespace Neurotoxin.Norm.Query
         {
             Append("[");
             Append(node.Column.ColumnName);
-            Append("]");
+            Append("]", false);
             Append(node.Column.ColumnType);
             if (node.Column.IsIdentity) Append("IDENTITY(1,1)");
             if (!node.Column.IsNullable) Append("NOT");
@@ -345,6 +343,20 @@ namespace Neurotoxin.Norm.Query
             return node;
         }
 
+        protected virtual Expression VisitCreateIndex(CreateIndexExpression node)
+        {
+            Append("CREATE");
+            VisitIndexType(node.IndexType);
+            Append("INDEX");
+            Append(node.Name);
+            Append("ON");
+            Visit(node.Table);
+            Append("(");
+            Visit(node.Columns);
+            Append(")", false);
+            return node;
+        }
+
         protected override Expression VisitBinary(BinaryExpression node)
         {
             VisitBinaryBranch(node.Left, node.NodeType);
@@ -368,6 +380,27 @@ namespace Neurotoxin.Norm.Query
         {
             Append(_dataEngine.GetLiteral(node.Value));
             return node;
+        }
+
+        protected virtual void VisitConstraintType(ConstraintType type)
+        {
+            switch (type)
+            {
+                case ConstraintType.PrimaryKey:
+                    Append("PRIMARY KEY");
+                    break;
+                case ConstraintType.ForeignKey:
+                    Append("FOREIGN KEY");
+                    break;
+                default:
+                    throw new NotSupportedException(type.ToString());
+            }
+        }
+
+        protected virtual void VisitIndexType(IndexType type)
+        {
+            if (type.HasFlag(IndexType.Unique)) Append("UNIQUE");
+            Append(type.HasFlag(IndexType.Clustered) ? "CLUSTERED" : "NONCLUSTERED");
         }
 
         protected virtual string ToSign(ExpressionType type)

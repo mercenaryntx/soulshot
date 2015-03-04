@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
 using Neurotoxin.Norm.Annotations;
 using Neurotoxin.Norm.Query;
 
@@ -19,20 +17,11 @@ namespace Neurotoxin.Norm
         public string PropertyName { get; set; }
         public bool IsNullable { get; set; }
         public bool IsIdentity { get; set; }
+        public IndexType? IndexType { get; set; }
 
         [Ignore] public object DefaultValue { get; set; }
         [Ignore] public bool IsDiscriminatorColumn { get; set; }
         [Ignore] public List<Type> DeclaringTypes { get; set; }
-
-        [Ignore]
-        public Type PropertyType
-        {
-            get
-            {
-                if (DeclaringTypes == null || PropertyName == null) return null;
-                return DeclaringTypes.First().GetProperty(PropertyName).PropertyType;
-            }
-        }
 
         public override bool Equals(object obj)
         {
@@ -47,11 +36,11 @@ namespace Neurotoxin.Norm
             return string.Equals(TableName, other.TableName) && 
                 string.Equals(TableSchema, other.TableSchema) && 
                 string.Equals(ColumnName, other.ColumnName) && 
-                //Equals(BaseType, other.BaseType) && 
                 string.Equals(ColumnType, other.ColumnType) && 
                 string.Equals(PropertyName, other.PropertyName) && 
                 IsNullable.Equals(other.IsNullable) && 
-                IsIdentity.Equals(other.IsIdentity);
+                IsIdentity.Equals(other.IsIdentity) &&
+                IndexType.Equals(other.IndexType);
         }
 
         public override int GetHashCode()
@@ -61,19 +50,18 @@ namespace Neurotoxin.Norm
                 int hashCode = (TableName != null ? TableName.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ (TableSchema != null ? TableSchema.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ (ColumnName != null ? ColumnName.GetHashCode() : 0);
-                //hashCode = (hashCode*397) ^ (BaseType != null ? BaseType.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ (ColumnType != null ? ColumnType.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ (PropertyName != null ? PropertyName.GetHashCode() : 0);
                 hashCode = (hashCode*397) ^ IsNullable.GetHashCode();
                 hashCode = (hashCode*397) ^ IsIdentity.GetHashCode();
+                hashCode = (hashCode * 397) ^ IndexType.GetHashCode();
                 return hashCode;
             }
         }
 
         public ColumnExpression ToColumnExpression(string alias = null)
         {
-            //return new ColumnExpression(ColumnName, alias, Property.PropertyType);
-            var type = PropertyName == null ? typeof (Type) : DeclaringTypes[0].GetProperty(PropertyName).PropertyType;
+            var type = PropertyName == null ? typeof(Type) : DeclaringTypes[0].GetProperty(PropertyName).PropertyType;
             return new ColumnExpression(ColumnName, alias, type);
         }
 

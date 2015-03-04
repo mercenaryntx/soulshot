@@ -16,7 +16,6 @@ namespace Neurotoxin.Norm.Mappers
 
         public virtual object MapToType(object value)
         {
-            if (value is DBNull) return null;
             if (value.GetType() == PropertyType) return value;
             throw new NotSupportedException(string.Format("Not supported mapping: {0} -> {1}", value.GetType(), PropertyType));
         }

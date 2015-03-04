@@ -5,6 +5,7 @@ using System.Reflection;
 using Neurotoxin.Norm.Annotations;
 using Neurotoxin.Norm.Extensions;
 using Neurotoxin.Norm.Mappers;
+using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
 {
@@ -42,8 +43,9 @@ namespace Neurotoxin.Norm
                     TableName = table.Name,
                     TableSchema = table.Schema,
                     ColumnName = DiscriminatorColumnName,
-                    ColumnType = DefaultTypeAttributes[typeof(string)].ToString(),
-                    IsDiscriminatorColumn = true
+                    ColumnType = "nvarchar(255)",
+                    IsDiscriminatorColumn = true,
+                    IndexType = IndexType.Default
                 });
 
             foreach (var pi in types.SelectMany(t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)))
@@ -65,8 +67,9 @@ namespace Neurotoxin.Norm
                 }
 
                 //TODO: proper nullable check
-                var isNullable = pi.PropertyType.IsClass;
+                var isNullable = pi.PropertyType.IsClass || IsNullable(pi.PropertyType);
                 object defaultValue = isNullable ? null : Activator.CreateInstance(pi.PropertyType);
+                var indexAttribute = pi.GetAttribute<IndexAttribute>();
                 columns.Add(columnName, new ColumnInfo
                 {
                     TableName = table.Name,
@@ -77,7 +80,8 @@ namespace Neurotoxin.Norm
                     PropertyName = pi.Name,
                     IsNullable = isNullable,
                     IsIdentity = pi.HasAttribute<KeyAttribute>(),
-                    DefaultValue = defaultValue
+                    DefaultValue = defaultValue,
+                    IndexType = indexAttribute != null ? indexAttribute.Type : (IndexType?)null
                 });
             }
 
@@ -88,6 +92,8 @@ namespace Neurotoxin.Norm
 
         public static object MapToType(object value, PropertyInfo pi = null)
         {
+            if (value is DBNull) return null;
+
             var type = pi != null ? pi.PropertyType : value.GetType();
             var columnType = pi != null ? GetColumnType(pi) : GetDefaultColumnType(type);
             var mapper = GetMapper(type, columnType);
@@ -97,6 +103,7 @@ namespace Neurotoxin.Norm
         public static string MapToSql(object value)
         {
             if (value == null) return "null";
+
             var type = value.GetType();
             var columnType = GetDefaultColumnType(type);
             var mapper = GetMapper(type, columnType);
@@ -123,9 +130,9 @@ namespace Neurotoxin.Norm
 
         internal static MapperBase TryGetMapper(Type propertyType, ColumnTypeAttribute columnType = null)
         {
+            if (IsEnum(propertyType)) propertyType = typeof(Enum);
             if (columnType == null)
             {
-                if (propertyType.IsEnum) propertyType = typeof(Enum);
                 if (!DefaultTypeAttributes.ContainsKey(propertyType)) return null;
                 columnType = DefaultTypeAttributes[propertyType];
             }
@@ -146,9 +153,19 @@ namespace Neurotoxin.Norm
 
         private static ColumnTypeAttribute GetDefaultColumnType(Type type)
         {
-            if (type.IsEnum) type = typeof(Enum);
+            if (IsEnum(type)) type = typeof(Enum);
             if (DefaultTypeAttributes.ContainsKey(type)) return DefaultTypeAttributes[type];
             throw new NotSupportedException("Unmappable type: " + type.FullName);
+        }
+
+        private static bool IsEnum(Type type)
+        {
+            return type.IsEnum || IsNullable(type);
+        }
+
+        private static bool IsNullable(Type type)
+        {
+            return type.IsGenericType && typeof (Nullable<>).MakeGenericType(type.GenericTypeArguments) == type;
         }
 
     }

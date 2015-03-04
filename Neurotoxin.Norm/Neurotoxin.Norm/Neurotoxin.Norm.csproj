@@ -119,6 +119,8 @@
     <Compile Include="Query\ColumnDefinitionExpression.cs" />
     <Compile Include="Query\ConstraintExpression.cs" />
     <Compile Include="Query\ConstraintType.cs" />
+    <Compile Include="Query\CreateIndexExpression.cs" />
+    <Compile Include="Query\IndexType.cs" />
     <Compile Include="Query\LikeExpression.cs" />
     <Compile Include="Query\ContainsExpression.cs" />
     <Compile Include="Query\CountExpression.cs" />

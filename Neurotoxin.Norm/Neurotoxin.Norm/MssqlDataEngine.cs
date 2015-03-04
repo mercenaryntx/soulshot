@@ -60,6 +60,25 @@ namespace Neurotoxin.Norm
             return count == 1;
         }
 
+        public override void CreateTable(TableAttribute table, IEnumerable<ColumnInfo> columns, bool generateConstraints = true)
+        {
+            using (var transaction = _connection.BeginTransaction())
+            {
+                _transaction = transaction;
+                try
+                {
+                    base.CreateTable(table, columns, generateConstraints);
+                    transaction.Commit();
+                }
+                catch (Exception)
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+                _transaction = null;
+            }
+        }
+
         public override void RenameTable(TableAttribute oldName, TableAttribute newName)
         {
             var cmd = _connection.CreateCommand();

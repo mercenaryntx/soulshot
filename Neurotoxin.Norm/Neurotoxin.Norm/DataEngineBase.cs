@@ -48,7 +48,18 @@ namespace Neurotoxin.Norm
                     create.AddConstraint(constraint);
                 }
             }
+            
             ExecuteNonQuery(create);
+            foreach (var column in columns.Where(c => c.IndexType.HasValue))
+            {
+                var name = string.Format("IX_{0}_{1}", table.FullName.Replace(".","_"), column.ColumnName);
+                var ix = new CreateIndexExpression(name, new TableExpression(table))
+                {
+                    IndexType = column.IndexType.Value
+                };
+                ix.AddColumn(column.ToColumnExpression());
+                ExecuteNonQuery(ix);
+            }
         }
 
         public virtual void AppendConstraints(TableAttribute table, IEnumerable<ColumnInfo> columns)
@@ -64,15 +75,16 @@ namespace Neurotoxin.Norm
         private List<ConstraintExpression> GetConstraints(TableAttribute table, IEnumerable<ColumnInfo> columns, ExpressionType nodeType)
         {
             var result = new List<ConstraintExpression>();
-            var pk = new ConstraintExpression(Expression.Constant("PK_" + table.FullName), ConstraintType.PrimaryKey | ConstraintType.Clustered, nodeType);
+            var pk = new ConstraintExpression("PK_" + table.FullName.Replace(".", "_"), nodeType)
+            {
+                ConstraintType = ConstraintType.PrimaryKey,
+                IndexType = IndexType.Clustered
+            };
             foreach (var column in columns.Where(c => c.IsIdentity))
             {
-                //TODO: proper PK and sort order handling
-                pk.AddColumn(new ColumnOrderExpression(new ColumnExpression(column.ColumnName, string.Empty, column.PropertyType), ListSortDirection.Ascending));
+                pk.AddColumn(new ColumnOrderExpression(column.ToColumnExpression(), ListSortDirection.Ascending));
             }
-            if (pk.Columns != null) result.Add(pk);
-
-            //TODO: support indexes
+            if (pk.Columns != null) result.Insert(0, pk);
             return result;
         }
 
@@ -83,6 +95,7 @@ namespace Neurotoxin.Norm
             {
                 if (storedColumns != null && !storedColumns.SequenceEqual(actualColumns))
                 {
+                    //TODO: what if there's constraint change only?
                     var tmpTable = new TableAttribute(table.Name + "_tmp", table.Schema);
                     CreateTable(tmpTable, actualColumns, false);
                     CopyValues(table, tmpTable, actualColumns.Where(c => storedColumns.Any(cc => cc.ColumnName == c.ColumnName)).ToList());

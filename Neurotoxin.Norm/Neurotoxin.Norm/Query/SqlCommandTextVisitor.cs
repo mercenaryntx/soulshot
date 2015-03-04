@@ -11,7 +11,7 @@ namespace Neurotoxin.Norm.Query
     public class SqlCommandTextVisitor : ExpressionVisitor
     {
         private readonly StringBuilder _commandBuilder = new StringBuilder();
-        private IDataEngine _dataEngine;
+        private readonly IDataEngine _dataEngine;
         private bool _useAliases = true;
 
         public string CommandText
@@ -77,24 +77,27 @@ namespace Neurotoxin.Norm.Query
             var countExpression = node as CountExpression;
             if (countExpression != null) return VisitCount(countExpression);
 
+            var containsExpression = node as ContainsExpression;
+            if (containsExpression != null) return VisitContains(containsExpression);
+
             return base.Visit(node);
         }
 
         protected virtual Expression VisitCreateTable(CreateTableExpression node)
         {
-            _commandBuilder.Append("CREATE TABLE");
+            Append("CREATE TABLE");
             Visit(node.Table);
-            _commandBuilder.Append("(");
+            Append("(");
             Visit(node.Columns);
-            if (node.Constraints != null) _commandBuilder.Append(",");
+            if (node.Constraints != null) Append(",", false);
             Visit(node.Constraints);
-            _commandBuilder.Append(")");
+            Append(")", false);
             return node;
         }
 
         protected virtual Expression VisitAlterTable(AlterTableExpression node)
         {
-            _commandBuilder.Append("ALTER TABLE");
+            Append("ALTER TABLE");
             Visit(node.Table);
             Visit(node.Columns);
             Visit(node.Constraints);
@@ -103,7 +106,7 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitDropTable(DropTableExpression node)
         {
-            _commandBuilder.Append("DROP TABLE");
+            Append("DROP TABLE");
             Visit(node.Table);
             return node;
         }
@@ -113,43 +116,43 @@ namespace Neurotoxin.Norm.Query
             switch (node.NodeType)
             {
                 case ExpressionType.Add:
-                    _commandBuilder.Append(" ADD");
+                    Append("ADD");
                     break;
                 case ExpressionType.Subtract:
-                    _commandBuilder.Append(" DROP");
+                    Append("DROP");
                     break;
             }
-            _commandBuilder.Append(" CONSTRAINT [");
-            _commandBuilder.Append(node.Name);
-            _commandBuilder.Append("]");
+            Append("CONSTRAINT [");
+            Visit(node.Name);
+            Append("]");
 
             if (node.NodeType != ExpressionType.Subtract)
             {
-                if (node.Type.HasFlag(ConstraintType.PrimaryKey)) _commandBuilder.Append(" PRIMARY KEY");
+                if (node.Type.HasFlag(ConstraintType.PrimaryKey)) Append("PRIMARY KEY");
                 if (node.Type.HasFlag(ConstraintType.ForeignKey)) throw new NotImplementedException();
-                if (node.Type.HasFlag(ConstraintType.Clustered)) _commandBuilder.Append(" CLUSTERED");
+                if (node.Type.HasFlag(ConstraintType.Clustered)) Append("CLUSTERED");
                 if (node.Type.HasFlag(ConstraintType.NonClustered)) throw new NotImplementedException();
-                _commandBuilder.Append("(");
+                Append("(");
                 Visit(node.Columns);
-                _commandBuilder.Append(")");
+                Append(")");
             }
             return node;
         }
 
         protected virtual Expression VisitSelect(SelectExpression node)
         {
-            _commandBuilder.Append("SELECT");
+            Append("SELECT");
             if (node.Top != null)
             {
-                _commandBuilder.Append(" TOP ");
+                Append("TOP ");
                 Visit(node.Top);
             }
             Visit(node.Selection);
-            _commandBuilder.Append(" FROM");
+            Append("FROM");
             Visit(node.From);
             if (node.Where != null)
             {
-                _commandBuilder.Append(" WHERE");
+                Append("WHERE");
                 Visit(node.Where);
             }
             return node;
@@ -158,11 +161,11 @@ namespace Neurotoxin.Norm.Query
         protected virtual Expression VisitDelete(DeleteExpression node)
         {
             _useAliases = false;
-            _commandBuilder.Append("DELETE FROM");
+            Append("DELETE FROM");
             Visit(node.From);
             if (node.Where != null)
             {
-                _commandBuilder.Append(" WHERE");
+                Append("WHERE");
                 Visit(node.Where);
             }
             return node;
@@ -170,13 +173,13 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitUpdate(UpdateExpression node)
         {
-            _commandBuilder.Append("UPDATE");
+            Append("UPDATE");
             Visit(node.Set);
             //TODO: support from
             Visit(node.Target);
             if (node.Where != null)
             {
-                _commandBuilder.Append(" WHERE");
+                Append("WHERE");
                 Visit(node.Where);
             }
             return node;
@@ -186,11 +189,11 @@ namespace Neurotoxin.Norm.Query
         {
             if (node.IsIdentityInsertEnabled)
             {
-                _commandBuilder.Append("SET IDENTITY_INSERT ");
+                Append("SET IDENTITY_INSERT");
                 Visit(node.Into);
-                _commandBuilder.Append(" ON;\n");
+                Append("ON;\n");
             }
-            _commandBuilder.Append("INSERT INTO");
+            Append("INSERT INTO");
             Visit(node.Into);
             if (node.Values != null)
             {
@@ -201,45 +204,44 @@ namespace Neurotoxin.Norm.Query
             }
             else if (node.Select != null)
             {
-                _commandBuilder.Append(" (");
+                Append("(");
                 Visit(node.Select.Selection);
-                _commandBuilder.Append(") ");
+                Append(")");
                 Visit(node.Select);
             }
 
             if (node.IsIdentityInsertEnabled)
             {
-                _commandBuilder.Append("\n");
-                _commandBuilder.Append("SET IDENTITY_INSERT ");
+                Append("\n");
+                Append("SET IDENTITY_INSERT");
                 Visit(node.Into);
-                _commandBuilder.Append(" OFF;");
-            }            
+                Append("OFF;");
+            }
             return node;
         }
 
         protected virtual Expression VisitValues(ValuesExpression node)
         {
-            _commandBuilder.Append("(");
+            Append("(");
             Visit(node.Columns);
-            _commandBuilder.Append(") VALUES (");
+            Append(") VALUES (");
             Visit(node.Values);
-            _commandBuilder.Append(")");
+            Append(")", false);
             return node;
         }
-        
+
         protected virtual Expression VisitListing(ListingExpression node)
         {
             Visit(node.Left);
-            _commandBuilder.Append(",");
+            Append(",", false);
             Visit(node.Right);
             return node;
         }
 
         protected virtual Expression VisitWhere(WhereExpression node)
         {
-            //TODO: handle ORs
             Visit(CheckBoolean(node.Left));
-            _commandBuilder.Append(" AND");
+            Append(ToSign(ExpressionType.And));
             Visit(CheckBoolean(node.Right));
             return node;
         }
@@ -254,65 +256,84 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitColumn(ColumnExpression node)
         {
-            var pattern = _useAliases && !string.IsNullOrEmpty(node.Alias) ? " {0}.[{1}]" : " [{1}]";
-            _commandBuilder.Append(string.Format(pattern, node.Alias, node.ColumnName));
+            var pattern = _useAliases && !string.IsNullOrEmpty(node.Alias) ? "{0}.[{1}]" : "[{1}]";
+            Append(string.Format(pattern, node.Alias, node.ColumnName));
             return node;
         }
 
         protected virtual Expression VisitColumnDefinition(ColumnDefinitionExpression node)
         {
-            _commandBuilder.Append("[");
-            _commandBuilder.Append(node.Column.ColumnName);
-            _commandBuilder.Append("] ");
-            _commandBuilder.Append(node.Column.ColumnType);
-            if (node.Column.IsIdentity) _commandBuilder.Append(" IDENTITY(1,1)");
-            if (!node.Column.IsNullable) _commandBuilder.Append(" NOT");
-            _commandBuilder.Append(" NULL");
+            Append("[");
+            Append(node.Column.ColumnName);
+            Append("]");
+            Append(node.Column.ColumnType);
+            if (node.Column.IsIdentity) Append("IDENTITY(1,1)");
+            if (!node.Column.IsNullable) Append("NOT");
+            Append("NULL");
             if (node.Column.DefaultValue != null && !node.Column.IsIdentity)
             {
-                _commandBuilder.Append(" DEFAULT ");
-                _commandBuilder.Append(_dataEngine.GetLiteral(node.Column.DefaultValue));
+                Append("DEFAULT");
+                Append(_dataEngine.GetLiteral(node.Column.DefaultValue));
             }
             return node;
         }
 
         protected virtual Expression VisitTable(TableExpression node)
         {
-            var pattern = _useAliases ? " {0} {1}" : " {0}";
-            _commandBuilder.Append(string.Format(pattern, node.Table.FullNameWithBrackets, node.Alias));
+            var pattern = _useAliases ? "{0} {1}" : "{0}";
+            Append(string.Format(pattern, node.Table.FullNameWithBrackets, node.Alias));
             return node;
         }
 
         protected virtual Expression VisitAsterisk(AsteriskExpression node)
         {
-            _commandBuilder.Append(" *");
+            Append("*");
             return node;
         }
 
         protected virtual Expression VisitSqlPart(SqlPartExpression node)
         {
-            _commandBuilder.Append(node.Value);
+            Append(node.Value);
             return node;
         }
 
         protected virtual Expression VisitCount(CountExpression node)
         {
-            _commandBuilder.Append(" COUNT(1)");
+            Append("COUNT(1)");
+            return node;
+        }
+
+        protected virtual Expression VisitContains(ContainsExpression node)
+        {
+            Visit(node.Column);
+            Append("IN (");
+            Visit(node.Content);
+            Append(")", false);
             return node;
         }
 
         protected override Expression VisitBinary(BinaryExpression node)
         {
-            Visit(node.Left);
-            _commandBuilder.Append(ToSign(node.NodeType));
-            Visit(node.Right);
+            VisitBinaryBranch(node.Left, node.NodeType);
+            Append(ToSign(node.NodeType));
+            VisitBinaryBranch(node.Right, node.NodeType);
             return node;
+        }
+
+        private void VisitBinaryBranch(Expression branch, ExpressionType parentNodeType)
+        {
+            var doBracket = false;
+            var binary = branch as BinaryExpression;
+            if (binary != null && binary.NodeType != parentNodeType) doBracket = true;
+
+            if (doBracket) Append("(");
+            Visit(branch);
+            if (doBracket) Append(")", false);
         }
 
         protected override Expression VisitConstant(ConstantExpression node)
         {
-            _commandBuilder.Append(" ");
-            _commandBuilder.Append(_dataEngine.GetLiteral(node.Value));
+            Append(_dataEngine.GetLiteral(node.Value));
             return node;
         }
 
@@ -322,16 +343,38 @@ namespace Neurotoxin.Norm.Query
             {
                 case ExpressionType.And:
                 case ExpressionType.AndAlso:
-                    return " AND";
+                    return "AND";
+                case ExpressionType.Or:
+                case ExpressionType.OrElse:
+                    return "OR";
                 case ExpressionType.Add:
-                    return " +";
+                    return "+";
                 case ExpressionType.Equal:
-                    return " =";
+                    return "=";
                 case ExpressionType.NotEqual:
-                    return " !=";
+                    return "!=";
+                case ExpressionType.GreaterThan:
+                    return ">";
+                case ExpressionType.GreaterThanOrEqual:
+                    return ">=";
+                case ExpressionType.LessThan:
+                    return "<";
+                case ExpressionType.LessThanOrEqual:
+                    return "<=";
                 default:
                     throw new NotImplementedException(type.ToString());
             }
+        }
+
+        private static readonly char[] Characters = { ' ', '(', '[', '\n' };
+
+        private void Append(string s, bool doSpace = true)
+        {
+            if (doSpace && _commandBuilder.Length > 0 && !Characters.Contains(_commandBuilder[_commandBuilder.Length - 1]))
+            {
+                _commandBuilder.Append(" ");    
+            }
+            _commandBuilder.Append(s);
         }
 
     }

@@ -129,9 +129,19 @@ namespace Neurotoxin.Norm
                     if (column == null) continue;
 
                     var value = pi.GetValue(entity);
-                    var defaultValue = Activator.CreateInstance(pi.PropertyType);
 
-                    if (column.IsIdentity && value != defaultValue) insert.IsIdentityInsertEnabled = true;
+                    if (column.IsIdentity)
+                    {
+                        var defaultValue = Activator.CreateInstance(pi.PropertyType);
+                        if (!value.Equals(defaultValue))
+                        {
+                            insert.IsIdentityInsertEnabled = true;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
 
                     values.AddColumn(column.ToColumnExpression());
                     values.AddValue(Expression.Constant(value));

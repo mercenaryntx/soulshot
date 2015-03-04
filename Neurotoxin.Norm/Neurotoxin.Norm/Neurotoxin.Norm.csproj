@@ -118,6 +118,7 @@
     <Compile Include="Query\ColumnDefinitionExpression.cs" />
     <Compile Include="Query\ConstraintExpression.cs" />
     <Compile Include="Query\ConstraintType.cs" />
+    <Compile Include="Query\ContainsExpression.cs" />
     <Compile Include="Query\CountExpression.cs" />
     <Compile Include="Query\DropTableExpression.cs" />
     <Compile Include="Query\CreateTableExpression.cs" />

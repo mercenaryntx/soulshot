@@ -81,7 +81,16 @@ namespace Neurotoxin.Norm.Tests
             Assert.IsTrue(number2.DeclaringTypes.SequenceEqual(seqClassD));
             Assert.AreEqual(number2.PropertyName, "NumberOfSomething");
 
-            Assert.AreEqual(columns.Count, 8);
+            /* Class E */
+            var seqClassE = new List<Type> { typeof(ClassE) };
+
+            var lorem = columns[8];
+            Assert.AreEqual(lorem.ColumnName, "Lorem");
+            Assert.AreEqual(lorem.ColumnType, "nvarchar(max)");
+            Assert.IsTrue(lorem.DeclaringTypes.SequenceEqual(seqClassE));
+            Assert.AreEqual(lorem.PropertyName, "Lorem");
+
+            Assert.AreEqual(columns.Count, 9);
         }
 
         [TestMethod]
@@ -214,14 +223,63 @@ namespace Neurotoxin.Norm.Tests
         }
 
         [TestMethod]
-        public void Select101()
+        public void SelectScalarList()
         {
             using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
             {
                 var sw = new Stopwatch();
                 sw.Start();
                 var c = context.TestTable.Select(e => e.Name).ToList();
-                Console.WriteLine("Count {0}: {1}", c, sw.Elapsed);
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void SelectGreaterThan()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.Where(e => e.Id > 15000).ToList();
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void SelectContains()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var ids = new[] {100, 200, 300, 400, 500};
+                var c = context.TestTable.Where(e => ids.Contains(e.Id)).ToList();
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void SelectOr()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.Where(e => e.Id == 100 || e.Id == 200 || e.Id == 300).ToList();
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void SelectAndOr()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.Where(e => e.Name == "Lorem ipsum" && (e.Id == 100 || e.Id == 200 || e.Id == 300)).ToList();
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
             }
         }
 

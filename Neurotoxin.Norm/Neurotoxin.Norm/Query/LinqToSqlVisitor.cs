@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -140,43 +141,62 @@ namespace Neurotoxin.Norm.Query
                     var alias = GetAlias(declaringType);
                     return column.ToColumnExpression(alias);
                 }
+
+                var constExpression = memberExpression.Expression as ConstantExpression;
+                if (constExpression != null)
+                {
+                    var container = constExpression.Value;
+                    var fieldInfo = mi as FieldInfo;
+                    if (fieldInfo != null) return Expression.Constant(fieldInfo.GetValue(container));
+                    var propertyInfo = mi as PropertyInfo;
+                    if (propertyInfo != null) return Expression.Constant(propertyInfo.GetValue(container, null));
+                }
                 else
                 {
-                    var constExpression = memberExpression.Expression as ConstantExpression;
+                    constExpression = BuildExpression(memberExpression.Expression) as ConstantExpression;
                     if (constExpression != null)
                     {
-                        var container = constExpression.Value;
+                        object value = null;
                         var fieldInfo = mi as FieldInfo;
-                        if (fieldInfo != null) return Expression.Constant(fieldInfo.GetValue(container));
+                        if (fieldInfo != null) value = fieldInfo.GetValue(constExpression.Value);
                         var propertyInfo = mi as PropertyInfo;
-                        if (propertyInfo != null) return Expression.Constant(propertyInfo.GetValue(container, null));
-                    }
-                    else
-                    {
-                        constExpression = BuildExpression(memberExpression.Expression) as ConstantExpression;
-                        if (constExpression != null)
-                        {
-                            object value = null;
-                            var fieldInfo = mi as FieldInfo;
-                            if (fieldInfo != null) value = fieldInfo.GetValue(constExpression.Value);
-                            var propertyInfo = mi as PropertyInfo;
-                            if (propertyInfo != null) value = propertyInfo.GetValue(constExpression.Value, null);
+                        if (propertyInfo != null) value = propertyInfo.GetValue(constExpression.Value, null);
 
-                            return Expression.Constant(value);
-                        }
-                        else
-                        {
-                            Debugger.Break();
-                        }
+                        return Expression.Constant(value);
                     }
+
+                    Debugger.Break();
                 }
             }
 
             var constantExpression = expression as ConstantExpression;
             if (constantExpression != null) return constantExpression;
 
-            Debugger.Break();
-            return null;
+            var methodCallExpression = expression as MethodCallExpression;
+            if (methodCallExpression != null)
+            {
+                if (methodCallExpression.Method.Name == "Contains")
+                {
+                    var containsExpression = new ContainsExpression
+                    {
+                        Column = (ColumnExpression) BuildExpression(methodCallExpression.Arguments[1])
+                    };
+
+                    var constant = (ConstantExpression)BuildExpression(methodCallExpression.Arguments[0]);
+                    var enumerable = constant.Value as IEnumerable;
+                    if (enumerable != null)
+                    {
+                        foreach (var value in enumerable)
+                        {
+                            containsExpression.AddContent(Expression.Constant(value));
+                        }
+                        return containsExpression;
+                    }
+                }
+                throw new NotSupportedException(methodCallExpression.Method.Name);
+            }
+
+            throw new NotSupportedException(expression.GetType().Name);
         }
 
         private string GetAlias(Type type)

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
+using Neurotoxin.Norm.Extensions;
 
 namespace Neurotoxin.Norm.Query
 {
@@ -272,17 +273,29 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitColumnDefinition(ColumnDefinitionExpression node)
         {
+            var c = node.Column;
             Append("[");
-            Append(node.Column.ColumnName);
+            Append(c.ColumnName);
             Append("]", false);
-            Append(node.Column.ColumnType);
-            if (node.Column.IsIdentity) Append("IDENTITY(1,1)");
-            if (!node.Column.IsNullable) Append("NOT");
-            Append("NULL");
-            if (node.Column.DefaultValue != null && !node.Column.IsIdentity)
+            Append(c.ColumnType);
+            if (c.ReferenceTable == null)
             {
-                Append("DEFAULT");
-                Append(_dataEngine.GetLiteral(node.Column.DefaultValue));
+                if (c.IsIdentity) Append("IDENTITY(1,1)");
+                if (!c.IsNullable) Append("NOT");
+                Append("NULL");
+                if (c.DefaultValue != null && !c.IsIdentity)
+                {
+                    Append("DEFAULT");
+                    Append(_dataEngine.GetLiteral(c.DefaultValue));
+                }
+            }
+            else
+            {
+                var pkFields = ColumnMapper.Cache[c.ReferenceTable].Where(cc => cc.IsIdentity).Select(cc => cc.ColumnName);
+
+                if (!c.IsNullable) Append("NOT NULL");
+                Append("FOREIGN KEY REFERENCES");
+                Append(string.Format("{0}({1})", c.ReferenceTable.GetTableAttribute().FullName, string.Join(",", pkFields)));
             }
             return node;
         }

@@ -22,7 +22,7 @@ namespace Neurotoxin.Norm.Tests
 
             var discriminator = columns[0];
             Assert.AreEqual(discriminator.ColumnName, ColumnMapper.DiscriminatorColumnName);
-            Assert.AreEqual(discriminator.ColumnType, "nvarchar(max)");
+            Assert.AreEqual(discriminator.ColumnType, "nvarchar(255)");
             Assert.IsNull(discriminator.DeclaringTypes);
             Assert.IsNull(discriminator.PropertyName);
 
@@ -328,6 +328,24 @@ namespace Neurotoxin.Norm.Tests
                 sw.Start();
                 var c = context.TestTable.OrderByDescending(e => e.Id).ThenBy(e => e.Name).ToList();
                 Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
+        public void ForeignKeys()
+        {
+            using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var address = new Address
+                {
+                    Street = "Futo utca",
+                    City = new City
+                    {
+                        Name = "Budapest"
+                    }
+                };
+                context.Address.Add(address);
+                context.SaveChanges();
             }
         }
 

@@ -88,9 +88,8 @@ namespace Neurotoxin.Norm
             return result;
         }
 
-        public List<ColumnInfo> UpdateTable<TEntity>(TableAttribute table, List<ColumnInfo> storedColumns)
+        public List<ColumnInfo> UpdateTable<TEntity>(TableAttribute table, List<ColumnInfo> actualColumns, List<ColumnInfo> storedColumns)
         {
-            var actualColumns = ColumnMapper.Map<TEntity>(table);
             if (TableExists(table))
             {
                 if (storedColumns != null && !storedColumns.SequenceEqual(actualColumns))

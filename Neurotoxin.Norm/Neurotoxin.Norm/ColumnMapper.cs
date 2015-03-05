@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Neurotoxin.Norm.Annotations;
@@ -19,7 +20,7 @@ namespace Neurotoxin.Norm
         static ColumnMapper()
         {
             var mapperbase = typeof (MapperBase);
-            foreach (var type in mapperbase.Assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && mapperbase.IsAssignableFrom(t)))
+            foreach (var type in mapperbase.Assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && mapperbase.IsAssignableFrom(t) && !t.IsGenericType))
             {
                 var mapper = (MapperBase)Activator.CreateInstance(type);
                 DefaultTypeAttributes.Add(mapper.PropertyType, mapper.ColumnType);
@@ -51,7 +52,11 @@ namespace Neurotoxin.Norm
             foreach (var pi in types.SelectMany(t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)))
             {
                 if (IsIgnorable(pi)) continue;
-                var columnType = GetColumnType(pi).ToString();
+                var columnTypeAttribute = GetColumnType(pi);
+                if (columnTypeAttribute is CrossTableReferenceAttribute) continue;
+                var foreignKeyAttribute = columnTypeAttribute as ForeignKeyAttribute;
+
+                var columnType = columnTypeAttribute.ToString();
                 var columnName = pi.Name;
                 if (columns.ContainsKey(columnName))
                 {
@@ -66,10 +71,10 @@ namespace Neurotoxin.Norm
                     }
                 }
 
-                //TODO: proper nullable check
-                var isNullable = pi.PropertyType.IsClass || IsNullable(pi.PropertyType);
+                var isNullable = IsNullable(pi.PropertyType);
                 object defaultValue = isNullable ? null : Activator.CreateInstance(pi.PropertyType);
                 var indexAttribute = pi.GetAttribute<IndexAttribute>();
+
                 columns.Add(columnName, new ColumnInfo
                 {
                     TableName = table.Name,
@@ -81,7 +86,8 @@ namespace Neurotoxin.Norm
                     IsNullable = isNullable,
                     IsIdentity = pi.HasAttribute<KeyAttribute>(),
                     DefaultValue = defaultValue,
-                    IndexType = indexAttribute != null ? indexAttribute.Type : (IndexType?)null
+                    IndexType = indexAttribute != null ? indexAttribute.Type : (IndexType?)null,
+                    ReferenceTable = foreignKeyAttribute != null ? pi.PropertyType : null
                 });
             }
 
@@ -97,7 +103,7 @@ namespace Neurotoxin.Norm
             var type = pi != null ? pi.PropertyType : value.GetType();
             var columnType = pi != null ? GetColumnType(pi) : GetDefaultColumnType(type);
             var mapper = GetMapper(type, columnType);
-            return mapper.MapToType(value);
+            return mapper.MapToType(value, type);
         }
 
         public static string MapToSql(object value)
@@ -105,6 +111,7 @@ namespace Neurotoxin.Norm
             if (value == null) return "null";
 
             var type = value.GetType();
+            if (value is IProxy) type = type.BaseType;
             var columnType = GetDefaultColumnType(type);
             var mapper = GetMapper(type, columnType);
             return mapper.MapToSql(value);
@@ -114,7 +121,7 @@ namespace Neurotoxin.Norm
         {
             var columnType = GetDefaultColumnType(typeof(string));
             var mapper = GetMapper(typeof(Type), columnType);
-            return (Type)mapper.MapToType(value);
+            return mapper.MapToType<Type>(value);
         }
 
         internal static MapperBase GetMapper(Type propertyType, ColumnTypeAttribute columnType = null)
@@ -155,17 +162,46 @@ namespace Neurotoxin.Norm
         {
             if (IsEnum(type)) type = typeof(Enum);
             if (DefaultTypeAttributes.ContainsKey(type)) return DefaultTypeAttributes[type];
+            var foreignKey = IsEntityBasedProperty(type);
+            if (foreignKey != null)
+            {
+                if (type.IsGenericType)
+                {
+                    DefaultTypeAttributes.Add(type, new CrossTableReferenceAttribute());
+                }
+                else
+                {
+                    var attribute = new ForeignKeyAttribute(GetColumnType(foreignKey).ToString());
+                    var mapperType = typeof (ForeignKeyMapper<>).MakeGenericType(type);
+                    var mapper = (MapperBase)Activator.CreateInstance(mapperType, attribute);
+                    Mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(type, attribute), mapper);
+                    DefaultTypeAttributes.Add(type, attribute);
+                }
+                return DefaultTypeAttributes[type];
+            }
             throw new NotSupportedException("Unmappable type: " + type.FullName);
         }
 
         private static bool IsEnum(Type type)
         {
-            return type.IsEnum || IsNullable(type);
+            if (type.IsEnum) return true;
+            if (!type.IsGenericType) return false;
+            var args = type.GenericTypeArguments;
+            return args.All(t => t.IsEnum) && typeof(Nullable<>).MakeGenericType(args) == type;
         }
 
         private static bool IsNullable(Type type)
         {
-            return type.IsGenericType && typeof (Nullable<>).MakeGenericType(type.GenericTypeArguments) == type;
+            if (type.IsClass) return true;
+            if (!type.IsGenericType) return false;
+            var args = type.GenericTypeArguments;
+            return args.All(t => t.IsValueType) && typeof (Nullable<>).MakeGenericType(args) == type;
+        }
+
+        private static PropertyInfo IsEntityBasedProperty(Type type)
+        {
+            if (type.IsGenericType) type = type.GetGenericArguments().First();
+            return type.IsClass ? type.GetProperties().SingleOrDefault(pi => pi.HasAttribute<KeyAttribute>()) : null;
         }
 
     }

@@ -105,6 +105,13 @@ namespace Neurotoxin.Norm
                         {
                             case EntityState.Added:
                                 Insert(entity, table, columns);
+                                var pk = columns.SingleOrDefault(c => c.IsIdentity); //TODO: support complex keys
+                                if (pk != null)
+                                {
+                                    var idCommand = string.Format("SELECT CAST(@@IDENTITY AS {0})", pk.ColumnType);
+                                    pk.SetValue(entity, ExecuteScalar(idCommand));
+                                }
+                                entity.State = EntityState.Unchanged;
                                 break;
                             case EntityState.Changed:
                                 Update(entity, table, columns);
@@ -206,6 +213,7 @@ namespace Neurotoxin.Norm
 
             using (var cmd = new SqlCommand(command, _connection))
             {
+                cmd.Transaction = _transaction;
                 var value = cmd.ExecuteScalar();
                 return ColumnMapper.MapToType(value);
             }

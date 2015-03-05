@@ -9,10 +9,10 @@ namespace Neurotoxin.Norm.Mappers
         {
         }
 
-        public override object MapToType(object value)
+        public override object MapToType(object value, Type type)
         {
             if (value is int) return Convert.ToInt64(value);
-            return base.MapToType(value);
+            return base.MapToType(value, type);
         }
     }
 }

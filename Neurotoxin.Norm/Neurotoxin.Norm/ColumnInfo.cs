@@ -22,6 +22,7 @@ namespace Neurotoxin.Norm
         [Ignore] public object DefaultValue { get; set; }
         [Ignore] public bool IsDiscriminatorColumn { get; set; }
         [Ignore] public List<Type> DeclaringTypes { get; set; }
+        [Ignore] public Type ReferenceTable { get; set; }
 
         public override bool Equals(object obj)
         {
@@ -73,7 +74,17 @@ namespace Neurotoxin.Norm
 
         public object GetValue(object obj)
         {
-            return obj.GetType().GetProperty(PropertyName).GetValue(obj);
+            return GetProperty(obj).GetValue(obj);
+        }
+
+        public void SetValue(object obj, object value)
+        {
+            GetProperty(obj).SetValue(obj, value);
+        }
+
+        private PropertyInfo GetProperty(object obj)
+        {
+            return obj.GetType().GetProperty(PropertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
         }
 
         public bool DescribesProperty(MemberInfo property)

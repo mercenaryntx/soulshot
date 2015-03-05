@@ -14,7 +14,12 @@ namespace Neurotoxin.Norm.Mappers
             ColumnType = columnType;
         }
 
-        public virtual object MapToType(object value)
+        public T MapToType<T>(object value)
+        {
+            return (T)MapToType(value, typeof (T));
+        }
+
+        public virtual object MapToType(object value, Type type)
         {
             if (value.GetType() == PropertyType) return value;
             throw new NotSupportedException(string.Format("Not supported mapping: {0} -> {1}", value.GetType(), PropertyType));

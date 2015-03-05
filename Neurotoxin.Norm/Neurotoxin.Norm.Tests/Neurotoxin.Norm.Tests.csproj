@@ -57,7 +57,9 @@
     <Compile Include="Models\ClassD.cs" />
     <Compile Include="Models\ClassE.cs" />
     <Compile Include="Models\EntityBase.cs" />
+    <Compile Include="Models\Person.cs" />
     <Compile Include="Models\TestContext.cs" />
+    <Compile Include="Models\TestContext2.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

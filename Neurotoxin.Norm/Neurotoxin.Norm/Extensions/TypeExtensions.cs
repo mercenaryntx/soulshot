@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Neurotoxin.Norm.Annotations;
@@ -28,7 +29,5 @@ namespace Neurotoxin.Norm.Extensions
         {
             return type.GetAttribute<TableAttribute>() ?? new TableAttribute(type.Name);
         }
-
-
     }
 }

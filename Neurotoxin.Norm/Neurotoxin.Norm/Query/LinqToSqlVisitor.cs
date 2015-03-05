@@ -76,7 +76,7 @@ namespace Neurotoxin.Norm.Query
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
-            var expression = BuildExpression(node.Arguments[1]);
+            var expression = node.Arguments.Count > 1 ? BuildExpression(node.Arguments[1]) : null;
             switch (node.Method.Name)
             {
                 case "Where":
@@ -88,6 +88,15 @@ namespace Neurotoxin.Norm.Query
                     break;
                 case "Count":
                     _select = new SelectExpression {Selection = new CountExpression()};
+                    _where = _where == null ? expression : new WhereExpression(_where, expression);
+                    break;
+                case "First":
+                case "FirstOrDefault":
+                case "Single":
+                case "SingleOrDefault":
+                    //TODO: handle these correctly
+                    if (_select == null) _select = new SelectExpression();
+                    _select.Top = Expression.Constant(1);
                     break;
                 case "Take":
                     if (_select == null) _select = new SelectExpression();
@@ -104,6 +113,10 @@ namespace Neurotoxin.Norm.Query
                 case "OrderByDescending":
                     if (_orderBy == null) _orderBy = new OrderByExpression();
                     _orderBy.AddColumn(expression, ListSortDirection.Descending);
+                    break;
+                case "Contains":
+                case "StartsWith":
+                case "EndsWith":
                     break;
                 default:
                     throw new NotSupportedException("Not supported method: " + node.Method.Name);

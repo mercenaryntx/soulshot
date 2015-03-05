@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace Neurotoxin.Norm
 {
@@ -7,6 +8,7 @@ namespace Neurotoxin.Norm
         List<ColumnInfo> Columns { get; }
 
         void Init();
+        void Init(Func<List<ColumnInfo>, List<IDbSet>> preUpdate);
         void SaveChanges();
     }
 }

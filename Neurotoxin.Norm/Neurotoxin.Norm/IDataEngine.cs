@@ -16,7 +16,7 @@ namespace Neurotoxin.Norm
         bool TableExists(TableAttribute table);
         List<ColumnInfo> CreateTable<TEntity>();
         List<ColumnInfo> CreateTable<TEntity>(TableAttribute table);
-        List<ColumnInfo> UpdateTable<TEntity>(TableAttribute table, List<ColumnInfo> storedColumns);
+        List<ColumnInfo> UpdateTable<TEntity>(TableAttribute table, List<ColumnInfo> actualColumns, List<ColumnInfo> storedColumns);
         void RenameTable(TableAttribute oldName, TableAttribute newName);
         void ExecuteNonQuery(Expression expression);
         IEnumerable ExecuteQuery(Type elementType, Expression expression);

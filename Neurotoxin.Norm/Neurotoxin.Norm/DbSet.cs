@@ -14,6 +14,7 @@ namespace Neurotoxin.Norm
         private readonly TableAttribute _table;
         private readonly IDataEngine _dataEngine;
         private readonly List<TEntity> _cachedEntities = new List<TEntity>();
+        private List<IDbSet> _relatedDbSets;
 
         public List<ColumnInfo> Columns { get; private set; }
         public SqlQueryProvider Provider { get; private set; }
@@ -46,7 +47,14 @@ namespace Neurotoxin.Norm
 
         public void Init()
         {
-            Columns = _dataEngine.UpdateTable<TEntity>(_table, Columns);
+            Init(null);
+        }
+
+        public void Init(Func<List<ColumnInfo>, List<IDbSet>> preUpdate)
+        {
+            var actualColumns = ColumnMapper.Map<TEntity>(_table);
+            if (preUpdate != null) _relatedDbSets = preUpdate.Invoke(actualColumns);
+            Columns = _dataEngine.UpdateTable<TEntity>(_table, actualColumns, Columns);
             Provider = new SqlQueryProvider(_dataEngine, _table, Columns);
             Expression = Expression.Constant(this);
         }
@@ -62,6 +70,17 @@ namespace Neurotoxin.Norm
             entity = (TEntity)proxy;
             _cachedEntities.Add(entity);
             proxy.State = state;
+            foreach (var column in Columns.Where(c => c.ReferenceTable != null))
+            {
+                var reference = column.GetValue(entity);
+                if (reference == null) continue;
+                var referenceEntityType = reference.GetType();
+                var referenceDbSetType = typeof(DbSet<>).MakeGenericType(referenceEntityType);
+                var referenceDbSet = _relatedDbSets.Single(d => d.GetType() == referenceDbSetType);
+                var add = referenceDbSetType.GetMethod("Add", new[] { referenceEntityType });
+                var referenceProxy = add.Invoke(referenceDbSet, new[] { reference });
+                column.SetValue(entity, referenceProxy);
+            }
             return entity;
         }
 
@@ -73,7 +92,17 @@ namespace Neurotoxin.Norm
         public void SaveChanges()
         {
             if (_cachedEntities.All(e => ((IProxy)e).State == EntityState.Unchanged)) return;
+            if (_relatedDbSets != null)
+            {
+                foreach (var dbSet in _relatedDbSets)
+                {
+                    dbSet.SaveChanges();
+                }
+            }
+
             _dataEngine.CommitChanges(_cachedEntities, _table, Columns);
+            //TODO: set IDs
+            _cachedEntities.Clear();
         }
 
         #region IQueryable members

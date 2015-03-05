@@ -47,6 +47,7 @@
     <Compile Include="Annotations\DateTimeAttribute.cs" />
     <Compile Include="Annotations\DateTimeOffsetAttribute.cs" />
     <Compile Include="Annotations\FloatAttribute.cs" />
+    <Compile Include="Annotations\ForeignKeyAttribute.cs" />
     <Compile Include="Annotations\IgnoreAttribute.cs" />
     <Compile Include="Annotations\IndexAttribute.cs" />
     <Compile Include="Annotations\KeyAttribute.cs" />
@@ -89,6 +90,9 @@
     <Compile Include="Mappers\BooleanMapper.cs" />
     <Compile Include="Mappers\ByteArrayMapper.cs" />
     <Compile Include="Mappers\EnumMapper.cs" />
+    <Compile Include="Mappers\ForeignKeyMapper.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="Mappers\GuidMapper.cs" />
     <Compile Include="Mappers\TimeSpanMapper.cs" />
     <Compile Include="Mappers\DateTimeOffsetMapper.cs" />

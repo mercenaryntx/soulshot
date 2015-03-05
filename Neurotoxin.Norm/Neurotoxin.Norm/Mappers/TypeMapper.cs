@@ -13,7 +13,7 @@ namespace Neurotoxin.Norm.Mappers
         {
         }
 
-        public override object MapToType(object value)
+        public override object MapToType(object value, Type type)
         {
             var stringValue = (string)value;
             if (_cache.ContainsKey(stringValue)) return _cache[stringValue];

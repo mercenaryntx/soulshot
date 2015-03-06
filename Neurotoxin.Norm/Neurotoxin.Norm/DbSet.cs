@@ -12,7 +12,7 @@ namespace Neurotoxin.Norm
     {
         private IDataEngine _dataEngine;
         private readonly List<TEntity> _cachedEntities = new List<TEntity>();
-        private List<IDbSet> _relatedDbSets;
+        private HashSet<IDbSet> _relatedDbSets;
 
         public TableAttribute Table { get; private set; }
         public ColumnInfoCollection Columns { get; private set; }
@@ -61,7 +61,7 @@ namespace Neurotoxin.Norm
 
         public void Init()
         {
-            List<IDbSet> relatedDbSets;
+            HashSet<IDbSet> relatedDbSets;
             var actualColumns = _dataEngine.ColumnMapper.Map<TEntity>(Table, out relatedDbSets);
             _relatedDbSets = relatedDbSets;
             Columns = _dataEngine.UpdateTable<TEntity>(Table, actualColumns, Columns);

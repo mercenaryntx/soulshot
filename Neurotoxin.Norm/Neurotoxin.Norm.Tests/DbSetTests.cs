@@ -17,7 +17,7 @@ namespace Neurotoxin.Norm.Tests
         {
             var table = new TableAttribute("Lorem", "ipsum");
             var mapper = new ColumnMapper();
-            List<IDbSet> relatedDbSets;
+            HashSet<IDbSet> relatedDbSets;
             var columns = mapper.Map<EntityBase>(table, out relatedDbSets);
 
             Assert.IsTrue(columns.All(c => c.TableName == "Lorem" && c.TableSchema == "ipsum"));
@@ -341,10 +341,8 @@ namespace Neurotoxin.Norm.Tests
                 var address = new Address
                 {
                     Street = "Futo utca",
-                    City = new City
-                    {
-                        Name = "Budapest"
-                    }
+                    CurrentCity = new City { Name = "Budapest" },
+                    Hometown = new City { Name = "Mosonmagyarovar" }
                 };
                 context.Address.Add(address);
                 context.SaveChanges();
@@ -352,8 +350,10 @@ namespace Neurotoxin.Norm.Tests
                 var stored = context.Address.First(a => a.Street == "Futo utca");
                 Assert.AreNotEqual(stored.Id, 0);
                 Assert.AreEqual(address.Street, stored.Street);
-                Assert.AreNotEqual(stored.City.Id, 0);
-                Assert.AreEqual(address.City.Name, stored.City.Name);
+                Assert.AreNotEqual(stored.CurrentCity.Id, 0);
+                Assert.AreEqual(address.CurrentCity.Name, stored.CurrentCity.Name);
+                Assert.AreNotEqual(stored.Hometown.Id, 0);
+                Assert.AreEqual(address.Hometown.Name, stored.Hometown.Name);
             }
         }
 

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Security.Policy;
 using Neurotoxin.Norm.Annotations;
 using Neurotoxin.Norm.Extensions;
 using Neurotoxin.Norm.Mappers;
@@ -30,9 +31,9 @@ namespace Neurotoxin.Norm
             }
         }
 
-        public ColumnInfoCollection Map<TEntity>(TableAttribute table, out List<IDbSet> relatedDbSets)
+        public ColumnInfoCollection Map<TEntity>(TableAttribute table, out HashSet<IDbSet> relatedDbSets)
         {
-            relatedDbSets = new List<IDbSet>();
+            relatedDbSets = new HashSet<IDbSet>();
             var columns = new Dictionary<string, ColumnInfo>();
             var baseType = typeof(TEntity);
             var types = baseType.Assembly.GetTypes()

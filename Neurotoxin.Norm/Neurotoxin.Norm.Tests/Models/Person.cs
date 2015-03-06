@@ -14,7 +14,8 @@ namespace Neurotoxin.Norm.Tests.Models
     {
         [Key] public int Id { get; set; }
         public string Street { get; set; }
-        public City City { get; set; }
+        public City Hometown { get; set; }
+        public City CurrentCity { get; set; }
     }
 
     public class City

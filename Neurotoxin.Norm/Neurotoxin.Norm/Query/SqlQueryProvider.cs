@@ -67,8 +67,21 @@ namespace Neurotoxin.Norm.Query
             if (typeof (TResult) == elementType)
             {
                 var enumerator = list.GetEnumerator();
-                enumerator.MoveNext();
-                return (TResult)enumerator.Current;
+                var methodCallExpression = expression as MethodCallExpression;
+                if (methodCallExpression == null) throw new InvalidOperationException();
+                switch (methodCallExpression.Method.Name)
+                {
+                    case "FirstOrDefault":
+                        return First<TResult>(enumerator, true);
+                    case "First":
+                        return First<TResult>(enumerator, false);
+                    case "SingleOrDefault":
+                        return Single<TResult>(enumerator, true);
+                    case "Single":
+                        return Single<TResult>(enumerator, false);
+                    default:
+                        throw new NotSupportedException(methodCallExpression.Method.Name);
+                }
             }
             return (TResult)list;
         }
@@ -96,6 +109,26 @@ namespace Neurotoxin.Norm.Query
             var sqlVisitor = new LinqToSqlVisitor(DbSet, targetExpression);
             sqlVisitor.Visit(expression);
             return sqlVisitor.GetResult();
+        }
+
+        private T First<T>(IEnumerator enumerator, bool orDefault)
+        {
+            if (enumerator.MoveNext()) return (T)enumerator.Current;
+            if (orDefault) return default(T);
+            throw new InvalidOperationException("Sequence contains no elements");
+        }
+
+        private T Single<T>(IEnumerator enumerator, bool orDefault)
+        {
+            var first = First<T>(enumerator, orDefault);
+            if (enumerator.MoveNext())
+            {
+                throw new InvalidOperationException("The input sequence contains more than one element");
+            }
+            else
+            {
+                return first;
+            }
         }
     }
 }

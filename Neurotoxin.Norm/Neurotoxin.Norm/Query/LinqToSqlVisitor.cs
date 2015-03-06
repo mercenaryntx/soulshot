@@ -19,7 +19,7 @@ namespace Neurotoxin.Norm.Query
         private readonly IDbSet _dbSet;
         private readonly Type _targetExpression;
 
-        private readonly Dictionary<Type, string> _aliases = new Dictionary<Type, string>();
+        private readonly Dictionary<object, string> _aliases = new Dictionary<object, string>();
 
         public LinqToSqlVisitor(IDbSet dbSet, Type targetExpression)
         {
@@ -34,7 +34,8 @@ namespace Neurotoxin.Norm.Query
                 var select = _select ?? new SelectExpression();
                 if (select.Selection == null)
                 {
-                    SelectAll(_dbSet.EntityType, select, string.Empty);
+                    if (!_aliases.Any()) GetAlias(_dbSet.EntityType);
+                    SelectAll(_aliases.ElementAt(0).Value, _dbSet, select, string.Empty);
                 }
                 if (select.From == null) select.From = GetFrom();
                 select.AddWhere(_where);
@@ -57,10 +58,8 @@ namespace Neurotoxin.Norm.Query
             throw new NotSupportedException("Invalid target expression: " + _targetExpression);
         }
 
-        private void SelectAll(Type type, SelectExpression select, string asPrefix)
+        private void SelectAll(string alias, IDbSet dbSet, SelectExpression select, string asPrefix)
         {
-            var dbSet = _dbSet.Context.GetDbSet(type);
-            var alias = GetAlias(type);
             foreach (var column in dbSet.Columns)
             {
                 var expression = column.ToColumnExpression(alias);
@@ -68,11 +67,11 @@ namespace Neurotoxin.Norm.Query
                 select.AddSelection(expression);
                 if (column.ReferenceTable != null)
                 {
-                    var a = GetAlias(column.ReferenceTable.BaseType);
+                    var a = GetAlias(column);
                     var target = _dbSet.Context.GetDbSet(column.ReferenceTable.BaseType);
                     var fk = target.PrimaryKey.ToColumnExpression(a);
                     select.AddWhere(Expression.MakeBinary(ExpressionType.Equal, column.ToColumnExpression(alias, fk.Type), fk));
-                    SelectAll(column.ReferenceTable.BaseType, select, string.Format("{0}{1}.", asPrefix, column.ColumnName));
+                    SelectAll(a, target, select, string.Format("{0}{1}.", asPrefix, column.ColumnName));
                 }
             }
         }
@@ -82,7 +81,13 @@ namespace Neurotoxin.Norm.Query
             Expression from = null;
             foreach (var a in _aliases)
             {
-                Expression expression = new TableExpression(_dbSet.Context.GetDbSet(a.Key).Table, a.Value);
+                var type = a.Key is Type ? (Type)a.Key : a.Key.GetType();
+                var columnInfo = a.Key as ColumnInfo;
+                if (columnInfo != null) type = columnInfo.ReferenceTable.BaseType;
+                var columnInfoCollection = a.Key as ColumnInfoCollection;
+                if (columnInfoCollection != null) type = columnInfoCollection.BaseType;
+                
+                Expression expression = new TableExpression(_dbSet.Context.GetDbSet(type).Table, a.Value);
                 from = from == null ? expression : new ListingExpression(from, expression);
             }
             return from ?? new TableExpression(_dbSet.Table);
@@ -103,6 +108,8 @@ namespace Neurotoxin.Norm.Query
             switch (node.Method.Name)
             {
                 case "Where":
+                case "Single":
+                case "SingleOrDefault":
                     _where = _where == null ? expression : new WhereExpression(_where, expression);
                     break;
                 case "Select":
@@ -115,9 +122,6 @@ namespace Neurotoxin.Norm.Query
                     break;
                 case "First":
                 case "FirstOrDefault":
-                case "Single":
-                case "SingleOrDefault":
-                    //TODO: handle these correctly
                     if (_select == null) _select = new SelectExpression();
                     _select.Top = Expression.Constant(1);
                     _where = _where == null ? expression : new WhereExpression(_where, expression);
@@ -274,17 +278,17 @@ namespace Neurotoxin.Norm.Query
             };
         }
 
-        private string GetAlias(Type type)
+        private string GetAlias(object obj)
         {
             string alias;
-            if (_aliases.ContainsKey(type))
+            if (_aliases.ContainsKey(obj))
             {
-                alias = _aliases[type];
+                alias = _aliases[obj];
             }
             else
             {
                 alias = "t" + _aliases.Count;
-                _aliases.Add(type, alias);
+                _aliases.Add(obj, alias);
             }
             return alias;
         }

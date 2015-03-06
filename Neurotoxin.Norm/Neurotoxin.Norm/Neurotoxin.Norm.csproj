@@ -75,6 +75,7 @@
     <Compile Include="Annotations\UnicodeCharacterAttribute.cs" />
     <Compile Include="Annotations\CharacterAttribute.cs" />
     <Compile Include="Annotations\ColumnTypeAttribute.cs" />
+    <Compile Include="ColumnInfoCollection.cs" />
     <Compile Include="ColumnMapper.cs" />
     <Compile Include="DataEngineBase.cs" />
     <Compile Include="DbContext.cs" />
@@ -86,7 +87,8 @@
     <Compile Include="EntityState.cs" />
     <Compile Include="Extensions\ILGeneratorExtensions.cs" />
     <Compile Include="Extensions\TypeBuilderExtensions.cs" />
-    <Compile Include="IProxy.cs" />
+    <Compile Include="IEntityProxy.cs" />
+    <Compile Include="ILazyProxy.cs" />
     <Compile Include="Mappers\BooleanMapper.cs" />
     <Compile Include="Mappers\ByteArrayMapper.cs" />
     <Compile Include="Mappers\EnumMapper.cs" />

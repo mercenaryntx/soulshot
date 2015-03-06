@@ -16,7 +16,9 @@ namespace Neurotoxin.Norm.Tests
         public void ColumnMapping()
         {
             var table = new TableAttribute("Lorem", "ipsum");
-            var columns = ColumnMapper.Map<EntityBase>(table);
+            var mapper = new ColumnMapper();
+            List<IDbSet> relatedDbSets;
+            var columns = mapper.Map<EntityBase>(table, out relatedDbSets);
 
             Assert.IsTrue(columns.All(c => c.TableName == "Lorem" && c.TableSchema == "ipsum"));
 
@@ -332,7 +334,7 @@ namespace Neurotoxin.Norm.Tests
         }
 
         [TestMethod]
-        public void ForeignKeys()
+        public void ForeignKeysWriteAndReadBack()
         {
             using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
             {
@@ -346,6 +348,12 @@ namespace Neurotoxin.Norm.Tests
                 };
                 context.Address.Add(address);
                 context.SaveChanges();
+
+                var stored = context.Address.First(a => a.Street == "Futo utca");
+                Assert.AreNotEqual(stored.Id, 0);
+                Assert.AreEqual(address.Street, stored.Street);
+                Assert.AreNotEqual(stored.City.Id, 0);
+                Assert.AreEqual(address.City.Name, stored.City.Name);
             }
         }
 

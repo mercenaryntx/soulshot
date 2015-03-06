@@ -10,14 +10,12 @@ namespace Neurotoxin.Norm.Query
     public class SqlQueryProvider : IQueryProvider
     {
         public IDataEngine DataEngine { get; private set; }
-        public TableAttribute Table { get; private set; }
-        public List<ColumnInfo> Columns { get; private set; }
+        public IDbSet DbSet { get; private set; }
 
-        public SqlQueryProvider(IDataEngine dataEngine, TableAttribute table, List<ColumnInfo> columns)
+        public SqlQueryProvider(IDataEngine dataEngine, IDbSet dbSet)
         {
             DataEngine = dataEngine;
-            Table = table;
-            Columns = columns;
+            DbSet = dbSet;
         }
 
         public IQueryable CreateQuery(Expression expression)
@@ -37,7 +35,7 @@ namespace Neurotoxin.Norm.Query
         public IQueryable<TElement> CreateQuery<TElement>(Expression expression)
         {
             var type = typeof(TElement);
-            var mapper = ColumnMapper.TryGetMapper(type);
+            var mapper = DataEngine.ColumnMapper.TryGetMapper(type);
             if (mapper != null)
             {
                 var list = (List<TElement>) Select(expression);
@@ -56,7 +54,7 @@ namespace Neurotoxin.Norm.Query
         public TResult Execute<TResult>(Expression expression)
         {
             var type = typeof(TResult);
-            var mapper = ColumnMapper.TryGetMapper(type);
+            var mapper = DataEngine.ColumnMapper.TryGetMapper(type);
             if (mapper != null)
             {
                 var sqlExpression = ExecuteImp(expression, typeof(SelectExpression));
@@ -95,7 +93,7 @@ namespace Neurotoxin.Norm.Query
 
         private SqlExpression ExecuteImp(Expression expression, Type targetExpression)
         {
-            var sqlVisitor = new LinqToSqlVisitor(Table, Columns, targetExpression);
+            var sqlVisitor = new LinqToSqlVisitor(DbSet, targetExpression);
             sqlVisitor.Visit(expression);
             return sqlVisitor.GetResult();
         }

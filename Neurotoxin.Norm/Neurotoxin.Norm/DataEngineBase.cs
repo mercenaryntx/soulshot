@@ -14,23 +14,30 @@ namespace Neurotoxin.Norm
 {
     public abstract class DataEngineBase : IDataEngine
     {
+        public ColumnMapper ColumnMapper { get; set; }
+
+        protected DataEngineBase()
+        {
+            ColumnMapper = new ColumnMapper();
+        }
+
         public bool TableExists<TEntity>()
         {
             var t = typeof(TEntity);
             return TableExists(t.GetTableAttribute());
         }
 
-        public List<ColumnInfo> CreateTable<TEntity>()
-        {
-            return CreateTable<TEntity>(typeof(TEntity).GetTableAttribute());
-        }
+        //public List<ColumnInfo> CreateTable<TEntity>()
+        //{
+        //    return CreateTable<TEntity>(typeof(TEntity).GetTableAttribute());
+        //}
 
-        public List<ColumnInfo> CreateTable<TEntity>(TableAttribute table)
-        {
-            var columns = ColumnMapper.Map<TEntity>(table);
-            CreateTable(table, columns);
-            return columns;
-        }
+        //public List<ColumnInfo> CreateTable<TEntity>(TableAttribute table)
+        //{
+        //    var columns = ColumnMapper.Map<TEntity>(table);
+        //    CreateTable(table, columns);
+        //    return columns;
+        //}
 
         public virtual void CreateTable(TableAttribute table, IEnumerable<ColumnInfo> columns, bool generateConstraints = true)
         {
@@ -88,16 +95,16 @@ namespace Neurotoxin.Norm
             return result;
         }
 
-        public List<ColumnInfo> UpdateTable<TEntity>(TableAttribute table, List<ColumnInfo> actualColumns, List<ColumnInfo> storedColumns)
+        public ColumnInfoCollection UpdateTable<TEntity>(TableAttribute table, ColumnInfoCollection actualColumns, ColumnInfoCollection storedColumns)
         {
             if (TableExists(table))
             {
-                if (storedColumns != null && !storedColumns.SequenceEqual(actualColumns))
+                if (storedColumns != null && !actualColumns.Equals(storedColumns))
                 {
                     //TODO: what if there's constraint change only?
                     var tmpTable = new TableAttribute(table.Name + "_tmp", table.Schema);
                     CreateTable(tmpTable, actualColumns, false);
-                    CopyValues(table, tmpTable, actualColumns.Where(c => storedColumns.Any(cc => cc.ColumnName == c.ColumnName)).ToList());
+                    CopyValues(table, tmpTable, actualColumns.Where(c => storedColumns.Any(cc => cc.ColumnName == c.ColumnName)));
                     DeleteTable(table);
                     RenameTable(tmpTable, table);
                     AppendConstraints(table, actualColumns);
@@ -110,7 +117,7 @@ namespace Neurotoxin.Norm
             return actualColumns;
         }
 
-        private void CopyValues(TableAttribute fromTable, TableAttribute toTable, List<ColumnInfo> columns)
+        private void CopyValues(TableAttribute fromTable, TableAttribute toTable, IEnumerable<ColumnInfo> columns)
         {
             var select = new SelectExpression(new TableExpression(fromTable));
             var insert = new InsertExpression(new TableExpression(toTable)) { Select = select };
@@ -122,7 +129,7 @@ namespace Neurotoxin.Norm
             ExecuteNonQuery(insert);
         }
 
-        protected virtual void Insert(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns)
+        protected virtual void Insert(IEntityProxy entity, TableAttribute table, ColumnInfoCollection columns)
         {
             var values = new ValuesExpression();
             var insert = new InsertExpression(new TableExpression(table)) { Values = values };
@@ -168,7 +175,7 @@ namespace Neurotoxin.Norm
             ExecuteNonQuery(insert);
         }
 
-        protected virtual void Update(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns)
+        protected virtual void Update(IEntityProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns)
         {
             //TODO: do not let an identity field to be dirtied
             var update = new UpdateExpression(new TableExpression(table));
@@ -186,7 +193,7 @@ namespace Neurotoxin.Norm
             ExecuteNonQuery(update);
         }
 
-        protected virtual void Delete(IProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns)
+        protected virtual void Delete(IEntityProxy entity, TableAttribute table, IEnumerable<ColumnInfo> columns)
         {
             var delete = new DeleteExpression(new TableExpression(table));
             foreach (var column in columns.Where(c => c.IsIdentity))
@@ -201,7 +208,7 @@ namespace Neurotoxin.Norm
             return (IEnumerable<TEntity>)ExecuteQuery(typeof(TEntity), expression);
         }
 
-        protected object MapType(Type type, Dictionary<string, object> values, Dictionary<string, string> columns)
+        protected object MapType(Type type, Dictionary<string, object> values, ColumnInfoCollection columns)
         {
             var entityType = type;
             var first = values.First();
@@ -222,19 +229,14 @@ namespace Neurotoxin.Norm
             }
 
             var proxyType = DynamicProxy.Instance.GetProxyType(entityType);
-            var instance = Activator.CreateInstance(proxyType);
+            var instance = (IEntityProxy)Activator.CreateInstance(proxyType);
 
             foreach (var kvp in values.Skip(skip))
             {
                 var name = kvp.Key;
                 var value = kvp.Value;
 
-                var propertyName = columns[name];
-                var pi = entityType.GetProperty(propertyName);
-                if (pi == null || !pi.CanWrite) continue;
-
-                var mappedValue = ColumnMapper.MapToType(value, pi);
-                pi.SetValue(instance, mappedValue);
+                columns.SetValue(instance, name, value, ColumnMapper);
             }
             return instance;
         }
@@ -242,7 +244,7 @@ namespace Neurotoxin.Norm
         public abstract bool TableExists(TableAttribute table);
         public abstract void RenameTable(TableAttribute oldName, TableAttribute newName);
         public abstract void DeleteTable(TableAttribute table);
-        public abstract void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns);
+        public abstract void CommitChanges(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns);
         public abstract string GetLiteral(object value);
         public abstract void ExecuteNonQuery(Expression expression);
         public abstract IEnumerable ExecuteQuery(Type elementType, Expression expression);

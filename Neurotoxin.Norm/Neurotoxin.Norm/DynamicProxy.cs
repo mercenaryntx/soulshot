@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Security.Cryptography;
 using Neurotoxin.Norm.Extensions;
 
 namespace Neurotoxin.Norm
@@ -12,7 +11,8 @@ namespace Neurotoxin.Norm
     {
         private readonly AssemblyBuilder _assemblyBuilder;
         private readonly ModuleBuilder _moduleBuilder;
-        private readonly Dictionary<Type, Type> _cache = new Dictionary<Type, Type>(); 
+        private readonly Dictionary<Type, Type> _entityProxyCache = new Dictionary<Type, Type>();
+        private readonly Dictionary<Type, Type> _lazyProxyCache = new Dictionary<Type, Type>(); 
 
         private static DynamicProxy _instance;
         internal static DynamicProxy Instance
@@ -29,8 +29,8 @@ namespace Neurotoxin.Norm
 
         internal Type GetProxyType(Type baseType)
         {
-            if (_cache.ContainsKey(baseType)) return _cache[baseType];
-            var typeBuilder = CreateTypeBuilder(baseType);
+            if (_entityProxyCache.ContainsKey(baseType)) return _entityProxyCache[baseType];
+            var typeBuilder = CreateTypeBuilder<IEntityProxy>(baseType);
             var dirtyProperties = typeBuilder.CreateProperty<HashSet<string>>("DirtyProperties", f => DirtyPropertiesGetter(typeBuilder, f));
             var state = typeBuilder.CreateProperty<EntityState>("State", f => StateGetter(typeBuilder, f, dirtyProperties.BackingField), f => StateSetter(typeBuilder, f));
 
@@ -50,7 +50,7 @@ namespace Neurotoxin.Norm
                 il.Emit(OpCodes.Ret);
             });
             var proxyType = typeBuilder.CreateType();
-            _cache[baseType] = proxyType;
+            _entityProxyCache[baseType] = proxyType;
             //_assemblyBuilder.Save("Foobar.dll");
             return proxyType;
         }
@@ -66,6 +66,28 @@ namespace Neurotoxin.Norm
             return Activator.CreateInstance(proxyType);
         }
 
+        internal ILazyProxy<T> CreateLazy<T>(Type baseType)
+        {
+            Type proxyType;
+            if (_lazyProxyCache.ContainsKey(baseType))
+            {
+                proxyType = _lazyProxyCache[baseType];
+            }
+            else
+            {
+                var typeBuilder = CreateTypeBuilder<ILazyProxy>(baseType);
+                typeBuilder.CreateDefaultConstructor(il =>
+                {
+                    il.Emit(OpCodes.Ldarg_0);
+                    il.Emit(OpCodes.Call, baseType.GetConstructor(Type.EmptyTypes));
+                    il.Emit(OpCodes.Ret);
+                });
+                proxyType = typeBuilder.CreateType();
+                _entityProxyCache[baseType] = proxyType;
+            }
+            return (ILazyProxy<T>)Activator.CreateInstance(proxyType);
+        }
+
         internal TBase Wrap<TBase>(TBase wrappee)
         {
             var baseType = wrappee.GetType();
@@ -78,9 +100,9 @@ namespace Neurotoxin.Norm
             return proxy;
         }
 
-        private TypeBuilder CreateTypeBuilder(Type baseType)
+        private TypeBuilder CreateTypeBuilder<T>(Type baseType)
         {
-            var typeBuilder = _moduleBuilder.DefineType(string.Format("{0}_Proxy", baseType.FullName), TypeAttributes.Class | TypeAttributes.Public, baseType, new[] { typeof(IProxy) });
+            var typeBuilder = _moduleBuilder.DefineType(string.Format("{0}_{1}", baseType.FullName, typeof(T).Name.Substring(1)), TypeAttributes.Class | TypeAttributes.Public, baseType, new[] { typeof(T) });
 
             if (baseType.IsGenericType)
             {
@@ -137,7 +159,7 @@ namespace Neurotoxin.Norm
         private MethodBuilder StateGetter(TypeBuilder typeBuilder, FieldBuilder field, FieldBuilder dirtyProperties)
         {
             var getter = typeBuilder.DefineMethod("get_State", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(EntityState), Type.EmptyTypes);
-            typeBuilder.DefineMethodOverride(getter, typeof(IProxy).GetMethod("get_State"));
+            typeBuilder.DefineMethodOverride(getter, typeof(IEntityProxy).GetMethod("get_State"));
             var il = getter.GetILGenerator();
 
             var changed = il.DefineLabel();
@@ -168,7 +190,7 @@ namespace Neurotoxin.Norm
         private MethodBuilder StateSetter(TypeBuilder typeBuilder, FieldBuilder field)
         {
             var setter = typeBuilder.DefineMethod("set_State", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(void), new[] {typeof(EntityState)});
-            typeBuilder.DefineMethodOverride(setter, typeof(IProxy).GetMethod("set_State"));
+            typeBuilder.DefineMethodOverride(setter, typeof(IEntityProxy).GetMethod("set_State"));
             var il = setter.GetILGenerator();
 
             //Generates the code of this._state = value;
@@ -183,7 +205,7 @@ namespace Neurotoxin.Norm
         private MethodBuilder DirtyPropertiesGetter(TypeBuilder typeBuilder, FieldBuilder field)
         {
             var setter = typeBuilder.DefineMethod("get_DirtyProperties", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(HashSet<string>), Type.EmptyTypes);
-            typeBuilder.DefineMethodOverride(setter, typeof(IProxy).GetMethod("get_DirtyProperties"));
+            typeBuilder.DefineMethodOverride(setter, typeof(IEntityProxy).GetMethod("get_DirtyProperties"));
             var il = setter.GetILGenerator();
 
             //Generates the code of return this._dirtyProperties;

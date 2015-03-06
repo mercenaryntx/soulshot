@@ -5,6 +5,7 @@ using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Neurotoxin.Norm.Annotations;
 using Neurotoxin.Norm.Query;
@@ -92,20 +93,20 @@ namespace Neurotoxin.Norm
             ExecuteNonQuery(drop);
         }
 
-        public override void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns)
+        public override void CommitChanges(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns)
         {
             using (var transaction = _connection.BeginTransaction())
             {
                 _transaction = transaction;
                 try
                 {
-                    foreach (IProxy entity in entities)
+                    foreach (IEntityProxy entity in entities)
                     {
                         switch (entity.State)
                         {
                             case EntityState.Added:
                                 Insert(entity, table, columns);
-                                var pk = columns.SingleOrDefault(c => c.IsIdentity); //TODO: support complex keys
+                                var pk = columns.SingleOrDefault(c => c.IsIdentity);
                                 if (pk != null)
                                 {
                                     var idCommand = string.Format("SELECT CAST(@@IDENTITY AS {0})", pk.ColumnType);
@@ -163,12 +164,10 @@ namespace Neurotoxin.Norm
         {
             Console.WriteLine(command);
 
-            var columns = ColumnMapper.Cache.ContainsKey(type)
-                ? ColumnMapper.Cache[type].ToDictionary(c => c.ColumnName, c => c.PropertyName)
-                : null;
+            var columns = ColumnMapper.Cache.ContainsKey(type) ? ColumnMapper.Cache[type] : null;
             var listType = typeof(List<>).MakeGenericType(type);
             var addMethod = listType.GetMethod("Add");
-            var list = Activator.CreateInstance(listType);
+            var list = (IEnumerable)Activator.CreateInstance(listType);
 
             using (var cmd = new SqlCommand(command, _connection))
             {
@@ -188,7 +187,8 @@ namespace Neurotoxin.Norm
                 }
                 reader.Close();
             }
-            return (IEnumerable)list;
+
+            return list;
         }
 
         private void ExecuteNonQuery(string command)

@@ -1,27 +1,23 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
 using Neurotoxin.Norm.Annotations;
-using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
 {
     public interface IDataEngine : IDisposable
     {
+        ColumnMapper ColumnMapper { get; set; }
+
         bool TableExists<TEntity>();
         bool TableExists(TableAttribute table);
-        List<ColumnInfo> CreateTable<TEntity>();
-        List<ColumnInfo> CreateTable<TEntity>(TableAttribute table);
-        List<ColumnInfo> UpdateTable<TEntity>(TableAttribute table, List<ColumnInfo> actualColumns, List<ColumnInfo> storedColumns);
+        ColumnInfoCollection UpdateTable<TEntity>(TableAttribute table, ColumnInfoCollection actualColumns, ColumnInfoCollection storedColumns);
         void RenameTable(TableAttribute oldName, TableAttribute newName);
         void ExecuteNonQuery(Expression expression);
         IEnumerable ExecuteQuery(Type elementType, Expression expression);
         IEnumerable<TEntity> Execute<TEntity>(Expression expression);
-        void CommitChanges(IEnumerable entities, TableAttribute table, IEnumerable<ColumnInfo> columns);
+        void CommitChanges(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns);
         string GetLiteral(object value);
         object ExecuteScalar(Expression expression, Type type);
     }

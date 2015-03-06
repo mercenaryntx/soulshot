@@ -216,7 +216,7 @@ namespace Neurotoxin.Norm.Query
             {
                 Append("(");
                 Visit(node.Select.Selection);
-                Append(")");
+                Append(")", false);
                 Visit(node.Select);
             }
 
@@ -234,7 +234,7 @@ namespace Neurotoxin.Norm.Query
         {
             Append("(");
             Visit(node.Columns);
-            Append(") VALUES (");
+            Append(") VALUES (", false);
             Visit(node.Values);
             Append(")", false);
             return node;
@@ -250,9 +250,14 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitWhere(WhereExpression node)
         {
-            Visit(CheckBoolean(node.Left));
-            Append(ToSign(ExpressionType.And));
-            Visit(CheckBoolean(node.Right));
+            var left = CheckBoolean(node.Left);
+            var right = CheckBoolean(node.Right);
+            Visit(left);
+            if (right != null)
+            {
+                Append(ToSign(ExpressionType.And));
+                Visit(right);
+            }
             return node;
         }
 
@@ -266,8 +271,25 @@ namespace Neurotoxin.Norm.Query
 
         protected virtual Expression VisitColumn(ColumnExpression node)
         {
-            var pattern = _useAliases && !string.IsNullOrEmpty(node.Alias) ? "{0}.[{1}]" : "[{1}]";
-            Append(string.Format(pattern, node.Alias, node.ColumnName));
+            if (_useAliases && !string.IsNullOrEmpty(node.Alias))
+            {
+                Append(node.Alias);
+                Append(".[", false);
+                Append(node.ColumnName, false);
+                Append("]", false);
+            }
+            else
+            {
+                Append("[", false);
+                Append(node.ColumnName, false);
+                Append("]", false);
+            }
+            if (!string.IsNullOrEmpty(node.As) && node.As != node.ColumnName)
+            {
+                Append("AS '");
+                Append(node.As, false);
+                Append("'", false);
+            }
             return node;
         }
 
@@ -291,11 +313,12 @@ namespace Neurotoxin.Norm.Query
             }
             else
             {
-                var pkFields = ColumnMapper.Cache[c.ReferenceTable].Where(cc => cc.IsIdentity).Select(cc => cc.ColumnName);
+                //TODO: use DbSet instead
+                var pkFields = _dataEngine.ColumnMapper.Cache[c.ReferenceTable.BaseType].Where(cc => cc.IsIdentity).Select(cc => cc.ColumnName);
 
                 if (!c.IsNullable) Append("NOT NULL");
                 Append("FOREIGN KEY REFERENCES");
-                Append(string.Format("{0}({1})", c.ReferenceTable.GetTableAttribute().FullName, string.Join(",", pkFields)));
+                Append(string.Format("{0}({1})", c.ReferenceTable.BaseType.GetTableAttribute().FullName, string.Join(",", pkFields)));
             }
             return node;
         }

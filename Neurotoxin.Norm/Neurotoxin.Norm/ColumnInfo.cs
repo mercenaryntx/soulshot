@@ -22,7 +22,7 @@ namespace Neurotoxin.Norm
         [Ignore] public object DefaultValue { get; set; }
         [Ignore] public bool IsDiscriminatorColumn { get; set; }
         [Ignore] public List<Type> DeclaringTypes { get; set; }
-        [Ignore] public Type ReferenceTable { get; set; }
+        [Ignore] public ColumnInfoCollection ReferenceTable { get; set; }
 
         public override bool Equals(object obj)
         {
@@ -60,9 +60,10 @@ namespace Neurotoxin.Norm
             }
         }
 
-        public ColumnExpression ToColumnExpression(string alias = null)
+        public ColumnExpression ToColumnExpression(string alias = null, Type type = null)
         {
-            var type = PropertyName == null ? typeof(Type) : DeclaringTypes[0].GetProperty(PropertyName).PropertyType;
+            if (type == null)
+                type = PropertyName == null ? typeof (Type) : DeclaringTypes[0].GetProperty(PropertyName).PropertyType;
             return new ColumnExpression(ColumnName, alias, type);
         }
 

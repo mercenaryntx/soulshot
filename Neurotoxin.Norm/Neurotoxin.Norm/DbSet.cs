@@ -4,32 +4,46 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using Neurotoxin.Norm.Annotations;
-using Neurotoxin.Norm.Extensions;
 using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
 {
     public class DbSet<TEntity> : IDbSet, IOrderedQueryable<TEntity>
     {
-        private readonly TableAttribute _table;
-        private readonly IDataEngine _dataEngine;
+        private IDataEngine _dataEngine;
         private readonly List<TEntity> _cachedEntities = new List<TEntity>();
         private List<IDbSet> _relatedDbSets;
 
-        public List<ColumnInfo> Columns { get; private set; }
+        public TableAttribute Table { get; private set; }
+        public ColumnInfoCollection Columns { get; private set; }
         public SqlQueryProvider Provider { get; private set; }
 
-        internal DbSet(IDataEngine dataEngine)
+        private DbContext _context;
+        public DbContext Context
         {
-            _table = typeof (TEntity).GetTableAttribute();
-            _dataEngine = dataEngine;
+            get { return _context; }
+            private set
+            {
+                _context = value;
+                _dataEngine = value.DataEngine;
+            }
         }
 
-        internal DbSet(TableAttribute table, List<ColumnInfo> columns, IDataEngine dataEngine)
+        public Type EntityType
         {
-            _table = table;
+            get { return typeof(TEntity); }
+        }
+
+        public ColumnInfo PrimaryKey
+        {
+            get { return Columns.SingleOrDefault(c => c.IsIdentity); }
+        }
+
+        internal DbSet(TableAttribute table, ColumnInfoCollection columns, DbContext context)
+        {
+            Table = table;
             Columns = columns;
-            _dataEngine = dataEngine;
+            Context = context;
         }
 
         public DbSet(SqlQueryProvider provider, Expression expression)
@@ -38,24 +52,20 @@ namespace Neurotoxin.Norm
             if (expression == null) throw new ArgumentNullException("expression");
             if (!typeof(IQueryable<TEntity>).IsAssignableFrom(expression.Type)) throw new ArgumentOutOfRangeException("expression");
 
-            _dataEngine = provider.DataEngine;
-            _table = provider.Table;
-            Columns = provider.Columns;
+            Table = provider.DbSet.Table;
+            Context = provider.DbSet.Context;
+            Columns = provider.DbSet.Columns;
             Provider = provider;
             Expression = expression;
         }
 
         public void Init()
         {
-            Init(null);
-        }
-
-        public void Init(Func<List<ColumnInfo>, List<IDbSet>> preUpdate)
-        {
-            var actualColumns = ColumnMapper.Map<TEntity>(_table);
-            if (preUpdate != null) _relatedDbSets = preUpdate.Invoke(actualColumns);
-            Columns = _dataEngine.UpdateTable<TEntity>(_table, actualColumns, Columns);
-            Provider = new SqlQueryProvider(_dataEngine, _table, Columns);
+            List<IDbSet> relatedDbSets;
+            var actualColumns = _dataEngine.ColumnMapper.Map<TEntity>(Table, out relatedDbSets);
+            _relatedDbSets = relatedDbSets;
+            Columns = _dataEngine.UpdateTable<TEntity>(Table, actualColumns, Columns);
+            Provider = new SqlQueryProvider(_dataEngine, this);
             Expression = Expression.Constant(this);
         }
 
@@ -66,7 +76,7 @@ namespace Neurotoxin.Norm
 
         internal TEntity Add(TEntity entity, EntityState state)
         {
-            var proxy = entity as IProxy ?? (IProxy)DynamicProxy.Instance.Wrap(entity);
+            var proxy = entity as IEntityProxy ?? (IEntityProxy)DynamicProxy.Instance.Wrap(entity);
             entity = (TEntity)proxy;
             _cachedEntities.Add(entity);
             proxy.State = state;
@@ -91,7 +101,7 @@ namespace Neurotoxin.Norm
 
         public void SaveChanges()
         {
-            if (_cachedEntities.All(e => ((IProxy)e).State == EntityState.Unchanged)) return;
+            if (_cachedEntities.All(e => ((IEntityProxy)e).State == EntityState.Unchanged)) return;
             if (_relatedDbSets != null)
             {
                 foreach (var dbSet in _relatedDbSets)
@@ -100,10 +110,17 @@ namespace Neurotoxin.Norm
                 }
             }
 
-            _dataEngine.CommitChanges(_cachedEntities, _table, Columns);
-            //TODO: set IDs
+            _dataEngine.CommitChanges(_cachedEntities, Table, Columns);
             _cachedEntities.Clear();
         }
+
+        //public TEntity SingleById(object id)
+        //{
+        //    var pk = Columns.Single(c => c.IsIdentity).ToColumnExpression(); //TODO: support complex keys
+        //    var select = new SelectExpression(new TableExpression(Table));
+        //    select.Where = Expression.MakeBinary(ExpressionType.Equal, pk, Expression.Constant(id, pk.Type));
+        //    return _dataEngine.Execute<TEntity>(select).Single();
+        //}
 
         #region IQueryable members
 

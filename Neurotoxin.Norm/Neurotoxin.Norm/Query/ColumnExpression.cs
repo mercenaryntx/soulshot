@@ -7,8 +7,9 @@ namespace Neurotoxin.Norm.Query
     {
         public string ColumnName { get; set; }
         public string Alias { get; set; }
+        public string As { get; set; }
 
-        public ColumnExpression(string columnName, string @alias, Type type) : base(ExpressionType.Constant, type)
+        public ColumnExpression(string columnName, string alias, Type type) : base(ExpressionType.Constant, type)
         {
             ColumnName = columnName;
             Alias = alias;

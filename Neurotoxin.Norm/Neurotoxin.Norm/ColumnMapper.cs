@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using Neurotoxin.Norm.Annotations;
@@ -10,26 +9,30 @@ using Neurotoxin.Norm.Query;
 
 namespace Neurotoxin.Norm
 {
-    public static class ColumnMapper
+    public class ColumnMapper
     {
         public const string DiscriminatorColumnName = "Discriminator";
-        public static readonly Dictionary<Type, ColumnTypeAttribute> DefaultTypeAttributes = new Dictionary<Type, ColumnTypeAttribute>();
-        public static readonly Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase> Mappers = new Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase>();
-        public static readonly Dictionary<Type, List<ColumnInfo>> Cache = new Dictionary<Type, List<ColumnInfo>>();
 
-        static ColumnMapper()
+        private readonly Dictionary<Type, ColumnTypeAttribute> _defaultTypeAttributes = new Dictionary<Type, ColumnTypeAttribute>();
+        private readonly Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase> _mappers = new Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase>();
+
+        public readonly Dictionary<Type, ColumnInfoCollection> Cache = new Dictionary<Type, ColumnInfoCollection>();
+        public DbContext Context { get; internal set; }
+
+        public ColumnMapper()
         {
             var mapperbase = typeof (MapperBase);
             foreach (var type in mapperbase.Assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && mapperbase.IsAssignableFrom(t) && !t.IsGenericType))
             {
                 var mapper = (MapperBase)Activator.CreateInstance(type);
-                DefaultTypeAttributes.Add(mapper.PropertyType, mapper.ColumnType);
-                Mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(mapper.PropertyType, mapper.ColumnType), mapper);
+                _defaultTypeAttributes.Add(mapper.PropertyType, mapper.ColumnType);
+                _mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(mapper.PropertyType, mapper.ColumnType), mapper);
             }
         }
 
-        public static List<ColumnInfo> Map<TEntity>(TableAttribute table)
+        public ColumnInfoCollection Map<TEntity>(TableAttribute table, out List<IDbSet> relatedDbSets)
         {
+            relatedDbSets = new List<IDbSet>();
             var columns = new Dictionary<string, ColumnInfo>();
             var baseType = typeof(TEntity);
             var types = baseType.Assembly.GetTypes()
@@ -55,6 +58,12 @@ namespace Neurotoxin.Norm
                 var columnTypeAttribute = GetColumnType(pi);
                 if (columnTypeAttribute is CrossTableReferenceAttribute) continue;
                 var foreignKeyAttribute = columnTypeAttribute as ForeignKeyAttribute;
+                ColumnInfoCollection referenceTable = null;
+                if (foreignKeyAttribute != null)
+                {
+                    referenceTable = foreignKeyAttribute.DbSet.Columns;
+                    relatedDbSets.Add(foreignKeyAttribute.DbSet);
+                }
 
                 var columnType = columnTypeAttribute.ToString();
                 var columnName = pi.Name;
@@ -87,16 +96,16 @@ namespace Neurotoxin.Norm
                     IsIdentity = pi.HasAttribute<KeyAttribute>(),
                     DefaultValue = defaultValue,
                     IndexType = indexAttribute != null ? indexAttribute.Type : (IndexType?)null,
-                    ReferenceTable = foreignKeyAttribute != null ? pi.PropertyType : null
+                    ReferenceTable = referenceTable
                 });
             }
 
-            var list = columns.Values.ToList();
+            var list = new ColumnInfoCollection(typeof(TEntity), table, columns.Values);
             Cache[baseType] = list;
             return list;
         }
 
-        public static object MapToType(object value, PropertyInfo pi = null)
+        public object MapToType(object value, PropertyInfo pi = null)
         {
             if (value is DBNull) return null;
 
@@ -106,25 +115,25 @@ namespace Neurotoxin.Norm
             return mapper.MapToType(value, type);
         }
 
-        public static string MapToSql(object value)
+        public string MapToSql(object value)
         {
             if (value == null) return "null";
 
             var type = value.GetType();
-            if (value is IProxy) type = type.BaseType;
+            if (value is IEntityProxy) type = type.BaseType;
             var columnType = GetDefaultColumnType(type);
             var mapper = GetMapper(type, columnType);
             return mapper.MapToSql(value);
         }
 
-        public static Type MapType(object value)
+        public Type MapType(object value)
         {
             var columnType = GetDefaultColumnType(typeof(string));
             var mapper = GetMapper(typeof(Type), columnType);
             return mapper.MapToType<Type>(value);
         }
 
-        internal static MapperBase GetMapper(Type propertyType, ColumnTypeAttribute columnType = null)
+        internal MapperBase GetMapper(Type propertyType, ColumnTypeAttribute columnType = null)
         {
             var mapper = TryGetMapper(propertyType, columnType);
             if (mapper == null)
@@ -135,54 +144,55 @@ namespace Neurotoxin.Norm
             return mapper;
         }
 
-        internal static MapperBase TryGetMapper(Type propertyType, ColumnTypeAttribute columnType = null)
+        internal MapperBase TryGetMapper(Type propertyType, ColumnTypeAttribute columnType = null)
         {
             if (IsEnum(propertyType)) propertyType = typeof(Enum);
             if (columnType == null)
             {
-                if (!DefaultTypeAttributes.ContainsKey(propertyType)) return null;
-                columnType = DefaultTypeAttributes[propertyType];
+                if (!_defaultTypeAttributes.ContainsKey(propertyType)) return null;
+                columnType = _defaultTypeAttributes[propertyType];
             }
             var key = new KeyValuePair<Type, ColumnTypeAttribute>(propertyType, columnType);
-            return Mappers.ContainsKey(key) ? Mappers[key] : null;
+            return _mappers.ContainsKey(key) ? _mappers[key] : null;
         }
 
-        private static bool IsIgnorable(PropertyInfo pi)
+        private bool IsIgnorable(PropertyInfo pi)
         {
             return pi.HasAttribute<IgnoreAttribute>();
         }
 
-        internal static ColumnTypeAttribute GetColumnType(PropertyInfo pi)
+        internal ColumnTypeAttribute GetColumnType(PropertyInfo pi)
         {
             var attribute = pi.GetAttribute<ColumnTypeAttribute>() ?? GetDefaultColumnType(pi.PropertyType);
             return attribute;
         }
 
-        private static ColumnTypeAttribute GetDefaultColumnType(Type type)
+        private ColumnTypeAttribute GetDefaultColumnType(Type type)
         {
             if (IsEnum(type)) type = typeof(Enum);
-            if (DefaultTypeAttributes.ContainsKey(type)) return DefaultTypeAttributes[type];
+            if (_defaultTypeAttributes.ContainsKey(type)) return _defaultTypeAttributes[type];
             var foreignKey = IsEntityBasedProperty(type);
             if (foreignKey != null)
             {
                 if (type.IsGenericType)
                 {
-                    DefaultTypeAttributes.Add(type, new CrossTableReferenceAttribute());
+                    _defaultTypeAttributes.Add(type, new CrossTableReferenceAttribute());
                 }
                 else
                 {
-                    var attribute = new ForeignKeyAttribute(GetColumnType(foreignKey).ToString());
+                    var targetDbSet = Context.EnsureTable(type);
+                    var attribute = new ForeignKeyAttribute(GetColumnType(foreignKey).ToString(), targetDbSet);
                     var mapperType = typeof (ForeignKeyMapper<>).MakeGenericType(type);
-                    var mapper = (MapperBase)Activator.CreateInstance(mapperType, attribute);
-                    Mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(type, attribute), mapper);
-                    DefaultTypeAttributes.Add(type, attribute);
+                    var mapper = (MapperBase)Activator.CreateInstance(mapperType, attribute, targetDbSet);
+                    _mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(type, attribute), mapper);
+                    _defaultTypeAttributes.Add(type, attribute);
                 }
-                return DefaultTypeAttributes[type];
+                return _defaultTypeAttributes[type];
             }
             throw new NotSupportedException("Unmappable type: " + type.FullName);
         }
 
-        private static bool IsEnum(Type type)
+        private bool IsEnum(Type type)
         {
             if (type.IsEnum) return true;
             if (!type.IsGenericType) return false;
@@ -190,7 +200,7 @@ namespace Neurotoxin.Norm
             return args.All(t => t.IsEnum) && typeof(Nullable<>).MakeGenericType(args) == type;
         }
 
-        private static bool IsNullable(Type type)
+        private bool IsNullable(Type type)
         {
             if (type.IsClass) return true;
             if (!type.IsGenericType) return false;
@@ -198,7 +208,7 @@ namespace Neurotoxin.Norm
             return args.All(t => t.IsValueType) && typeof (Nullable<>).MakeGenericType(args) == type;
         }
 
-        private static PropertyInfo IsEntityBasedProperty(Type type)
+        private PropertyInfo IsEntityBasedProperty(Type type)
         {
             if (type.IsGenericType) type = type.GetGenericArguments().First();
             return type.IsClass ? type.GetProperties().SingleOrDefault(pi => pi.HasAttribute<KeyAttribute>()) : null;

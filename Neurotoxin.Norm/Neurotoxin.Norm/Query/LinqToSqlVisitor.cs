@@ -7,7 +7,6 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
-using Neurotoxin.Norm.Annotations;
 
 namespace Neurotoxin.Norm.Query
 {
@@ -17,41 +16,34 @@ namespace Neurotoxin.Norm.Query
         private Expression _where;
         private OrderByExpression _orderBy;
 
-        private readonly TableAttribute _table;
-        private readonly List<ColumnInfo> _columnMapping;
+        private readonly IDbSet _dbSet;
         private readonly Type _targetExpression;
 
         private readonly Dictionary<Type, string> _aliases = new Dictionary<Type, string>();
 
-        public LinqToSqlVisitor(TableAttribute table, List<ColumnInfo> columnMapping, Type targetExpression)
+        public LinqToSqlVisitor(IDbSet dbSet, Type targetExpression)
         {
-            _table = table;
-            _columnMapping = columnMapping;
+            _dbSet = dbSet;
             _targetExpression = targetExpression;
         }
 
         public SqlExpression GetResult()
         {
-            Expression from = null;
-            foreach (var a in _aliases)
-            {
-                //TODO: set join type, map tables property
-                Expression expression = new TableExpression(_table, a.Value);
-                from = from == null ? expression : new ListingExpression(from, expression);
-            }
-            if (from == null) from = new TableExpression(_table);
-
             if (_targetExpression == typeof(SelectExpression))
             {
                 var select = _select ?? new SelectExpression();
-                if (select.Selection == null) select.Selection = new AsteriskExpression();
-                if (select.From == null) select.From = from;
-                select.Where = _where;
+                if (select.Selection == null)
+                {
+                    SelectAll(_dbSet.EntityType, select, string.Empty);
+                }
+                if (select.From == null) select.From = GetFrom();
+                select.AddWhere(_where);
                 select.OrderBy = _orderBy;
                 return select;
             }
             if (_targetExpression == typeof(DeleteExpression))
             {
+                var from = GetFrom();
                 if (from is ListingExpression) throw new NotSupportedException("Multiple from is not supported in case of Delete");
                 return new DeleteExpression(from) { Where = _where };
             }
@@ -59,10 +51,41 @@ namespace Neurotoxin.Norm.Query
             if (_targetExpression == typeof(UpdateExpression))
             {
                 //TODO
-                return new UpdateExpression(from);
+                return new UpdateExpression(GetFrom());
             }
 
             throw new NotSupportedException("Invalid target expression: " + _targetExpression);
+        }
+
+        private void SelectAll(Type type, SelectExpression select, string asPrefix)
+        {
+            var dbSet = _dbSet.Context.GetDbSet(type);
+            var alias = GetAlias(type);
+            foreach (var column in dbSet.Columns)
+            {
+                var expression = column.ToColumnExpression(alias);
+                expression.As = asPrefix + column.ColumnName;
+                select.AddSelection(expression);
+                if (column.ReferenceTable != null)
+                {
+                    var a = GetAlias(column.ReferenceTable.BaseType);
+                    var target = _dbSet.Context.GetDbSet(column.ReferenceTable.BaseType);
+                    var fk = target.PrimaryKey.ToColumnExpression(a);
+                    select.AddWhere(Expression.MakeBinary(ExpressionType.Equal, column.ToColumnExpression(alias, fk.Type), fk));
+                    SelectAll(column.ReferenceTable.BaseType, select, string.Format("{0}{1}.", asPrefix, column.ColumnName));
+                }
+            }
+        }
+
+        private Expression GetFrom()
+        {
+            Expression from = null;
+            foreach (var a in _aliases)
+            {
+                Expression expression = new TableExpression(_dbSet.Context.GetDbSet(a.Key).Table, a.Value);
+                from = from == null ? expression : new ListingExpression(from, expression);
+            }
+            return from ?? new TableExpression(_dbSet.Table);
         }
 
         protected override Expression VisitLambda<T>(Expression<T> node)
@@ -97,6 +120,7 @@ namespace Neurotoxin.Norm.Query
                     //TODO: handle these correctly
                     if (_select == null) _select = new SelectExpression();
                     _select.Top = Expression.Constant(1);
+                    _where = _where == null ? expression : new WhereExpression(_where, expression);
                     break;
                 case "Take":
                     if (_select == null) _select = new SelectExpression();
@@ -155,7 +179,7 @@ namespace Neurotoxin.Norm.Query
             {
                 var mi = memberExpression.Member;
                 var declaringType = mi.DeclaringType;
-                var column = _columnMapping.SingleOrDefault(c => c.DescribesProperty(mi));
+                var column = _dbSet.Columns.SingleOrDefault(c => c.DescribesProperty(mi));
                 if (column != null)
                 {
                     var alias = GetAlias(declaringType);

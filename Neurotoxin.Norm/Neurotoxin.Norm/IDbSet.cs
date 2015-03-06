@@ -1,14 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
+using Neurotoxin.Norm.Annotations;
 
 namespace Neurotoxin.Norm
 {
     public interface IDbSet
     {
-        List<ColumnInfo> Columns { get; }
+        DbContext Context { get; }
+        TableAttribute Table { get; }
+        ColumnInfoCollection Columns { get; }
+        ColumnInfo PrimaryKey { get; }
+        Type EntityType { get; }
 
         void Init();
-        void Init(Func<List<ColumnInfo>, List<IDbSet>> preUpdate);
         void SaveChanges();
     }
 }

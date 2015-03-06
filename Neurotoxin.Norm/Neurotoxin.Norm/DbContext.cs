@@ -9,18 +9,20 @@ namespace Neurotoxin.Norm
 {
     public abstract class DbContext : IDisposable
     {
-        private readonly IDataEngine _dataEngine;
         private readonly DbSet<ColumnInfo> _migrationHistory;
         private readonly List<IDbSet> _dbSets = new List<IDbSet>();
+        private readonly Type _iDbSet = typeof(IDbSet);
+
+        internal IDataEngine DataEngine { get; set; }
 
         protected DbContext(string connectionString)
         {
-            _dataEngine = new MssqlDataEngine(connectionString);
-            _migrationHistory = new DbSet<ColumnInfo>(_dataEngine);
-            _migrationHistory.Init();
-
-            var iDbSet = typeof(IDbSet);
-            var dbSetProperties = GetType().GetProperties().Where(pi => iDbSet.IsAssignableFrom(pi.PropertyType)).ToList();
+            DataEngine = new MssqlDataEngine(connectionString);
+            DataEngine.ColumnMapper.Context = this;
+            _migrationHistory = CreateDbSet<ColumnInfo>();
+            _dbSets.Add(_migrationHistory);
+            
+            var dbSetProperties = GetType().GetProperties().Where(pi => _iDbSet.IsAssignableFrom(pi.PropertyType)).ToList();
             foreach (var pi in dbSetProperties)
             {
                 var table = GetTableDefinition(pi);
@@ -34,9 +36,13 @@ namespace Neurotoxin.Norm
             return pi.GetAttribute<TableAttribute>() ?? pi.PropertyType.GetGenericArguments().First().GetTableAttribute();
         }
 
-        private IDbSet EnsureTable(Type type, TableAttribute table)
+        internal IDbSet EnsureTable(Type type, TableAttribute table = null)
         {
-            var columns = _migrationHistory.Where(e => e.TableName == table.Name && e.TableSchema == table.Schema).ToList();
+            if (table == null) table = type.GetTableAttribute();
+            var existing = GetDbSet(table);
+            if (existing != null) return existing;
+
+            var columns = new ColumnInfoCollection(type, table, _migrationHistory.Where(e => e.TableName == table.Name && e.TableSchema == table.Schema));
             var dbSet = CreateDbSet(type, table, columns);
             _dbSets.Add(dbSet);
             if (!dbSet.Columns.SequenceEqual(columns))
@@ -51,19 +57,34 @@ namespace Neurotoxin.Norm
             return dbSet;
         }
 
-        private IDbSet CreateDbSet(Type type, TableAttribute table, List<ColumnInfo> columns)
+        private DbSet<T> CreateDbSet<T>()
         {
-            var ctor = type.GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { table.GetType(), columns.GetType(), typeof(IDataEngine) }, null);
-            var instance = (IDbSet)ctor.Invoke(new object[] { table, columns, _dataEngine });
-            instance.Init(ResolveDependencies);
+            var type = typeof(T);
+            return (DbSet<T>)CreateDbSet(GetDbSetType(type), type.GetTableAttribute(), null);
+        }
+
+        private IDbSet CreateDbSet(Type type, TableAttribute table, ColumnInfoCollection columns)
+        {
+            if (!_iDbSet.IsAssignableFrom(type)) type = GetDbSetType(type);
+            var ctor = type.GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { typeof(TableAttribute), typeof(ColumnInfoCollection), typeof(DbContext) }, null);
+            var instance = (IDbSet)ctor.Invoke(new object[] { table, columns, this });
+            instance.Init();
             return instance;
         }
 
-        private List<IDbSet> ResolveDependencies(List<ColumnInfo> columns)
+        private Type GetDbSetType(Type entityType)
         {
-            return columns.Where(c => c.ReferenceTable != null)
-                          .Select(column => EnsureTable(typeof(DbSet<>).MakeGenericType(column.ReferenceTable), column.ReferenceTable.GetTableAttribute()))
-                          .ToList();
+            return typeof(DbSet<>).MakeGenericType(entityType);
+        }
+
+        public IDbSet GetDbSet(Type type)
+        {
+            return GetDbSet(type.GetTableAttribute());
+        }
+
+        public IDbSet GetDbSet(TableAttribute table)
+        {
+            return _dbSets.SingleOrDefault(d => d.Table.Equals(table));
         }
 
         public void SaveChanges()
@@ -73,7 +94,7 @@ namespace Neurotoxin.Norm
 
         public void Dispose()
         {
-            _dataEngine.Dispose();
+            DataEngine.Dispose();
         }
     }
 }

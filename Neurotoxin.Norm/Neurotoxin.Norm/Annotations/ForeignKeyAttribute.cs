@@ -4,7 +4,12 @@ namespace Neurotoxin.Norm.Annotations
 {
     public class ForeignKeyAttribute : ColumnTypeAttribute
     {
-        public ForeignKeyAttribute(string type) : base(type) { }
+        public IDbSet DbSet { get; private set; }
+
+        public ForeignKeyAttribute(string type, IDbSet dbSet) : base(type)
+        {
+            DbSet = dbSet;
+        }
     }
 
     public class CrossTableReferenceAttribute : ColumnTypeAttribute

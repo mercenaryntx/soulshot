@@ -2,7 +2,7 @@
 
 namespace Neurotoxin.Norm
 {
-    public interface IProxy
+    public interface IEntityProxy
     {
         EntityState State { get; set; }
         HashSet<string> DirtyProperties { get; }

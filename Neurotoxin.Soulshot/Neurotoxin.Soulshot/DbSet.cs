@@ -11,7 +11,7 @@ namespace Neurotoxin.Soulshot
     public class DbSet<TEntity> : IDbSet, IOrderedQueryable<TEntity>
     {
         private IDataEngine _dataEngine;
-        private readonly List<TEntity> _cachedEntities = new List<TEntity>();
+        private readonly HashSet<TEntity> _cachedEntities = new HashSet<TEntity>();
         private HashSet<IDbSet> _relatedDbSets;
 
         public TableAttribute Table { get; private set; }
@@ -76,8 +76,12 @@ namespace Neurotoxin.Soulshot
 
         internal TEntity Add(TEntity entity, EntityState state)
         {
+            var existingProxy =_cachedEntities.SingleOrDefault(e => ((IEntityProxy) e).GeneratedFrom.Equals(entity));
+            if (existingProxy != null) return existingProxy;
+
             var proxy = entity as IEntityProxy ?? (IEntityProxy)DynamicProxy.Instance.Wrap(entity);
             entity = (TEntity)proxy;
+
             _cachedEntities.Add(entity);
             proxy.State = state;
             foreach (var column in Columns.Where(c => c.ReferenceTable != null))

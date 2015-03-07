@@ -65,5 +65,51 @@ namespace Neurotoxin.Soulshot.Extensions
             setConstructorBody.Invoke(il);
             return constructorBuilder;
         }
+
+        public static PropertyFieldPair ImplementInterfaceProperty<TInterface>(this TypeBuilder typeBuilder, string propertyName, Func<TypeBuilder, FieldBuilder, PropertyInfo, Type, MethodBuilder> getter = null, Func<TypeBuilder, FieldBuilder, PropertyInfo, Type, MethodBuilder> setter = null)
+        {
+            var interfaceType = typeof (TInterface);
+            var pi = interfaceType.GetProperty(propertyName);
+            if (getter == null) getter = DefaultInterfacePropertyGetter;
+            if (setter == null) setter = DefaultInterfacePropertySetter;
+            return CreateProperty(typeBuilder, pi.PropertyType, pi.Name, f => getter(typeBuilder, f, pi, interfaceType), f => setter(typeBuilder, f, pi, interfaceType));
+        }
+
+        private static MethodBuilder DefaultInterfacePropertyGetter(TypeBuilder typeBuilder, FieldBuilder field, PropertyInfo pi, Type interfaceType)
+        {
+            var name = "get_" + pi.Name;
+            var interfaceGetter = interfaceType.GetMethod(name);
+            if (interfaceGetter == null) return null;
+
+            var setter = typeBuilder.DefineMethod(name, MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, pi.PropertyType, Type.EmptyTypes);
+            typeBuilder.DefineMethodOverride(setter, interfaceGetter);
+            var il = setter.GetILGenerator();
+
+            //Generates the code of return this._backingField;
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldfld, field);
+            il.Emit(OpCodes.Ret);
+
+            return setter;
+        }
+
+        private static MethodBuilder DefaultInterfacePropertySetter(TypeBuilder typeBuilder, FieldBuilder field, PropertyInfo pi, Type interfaceType)
+        {
+            var name = "set_" + pi.Name;
+            var interfaceSetter = interfaceType.GetMethod(name);
+            if (interfaceSetter == null) return null;
+
+            var setter = typeBuilder.DefineMethod(name, MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(void), new[] { pi.PropertyType });
+            typeBuilder.DefineMethodOverride(setter, interfaceSetter);
+            var il = setter.GetILGenerator();
+
+            //Generates the code of this._backingField = value;
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Stfld, field);
+            il.Emit(OpCodes.Ret);
+
+            return setter;
+        }
     }
 }

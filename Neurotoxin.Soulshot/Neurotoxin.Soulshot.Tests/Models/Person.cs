@@ -23,13 +23,13 @@ namespace Neurotoxin.Soulshot.Tests.Models
         [Key]
         public int Id { get; set; }
         public string Name { get; set; }
-        //public Country Country { get; set; }
+        public Country Country { get; set; }
     }
 
-    //public class Country
-    //{
-    //    [Key]
-    //    public int Id { get; set; }
-    //    public string Name { get; set; }
-    //}
+    public class Country
+    {
+        [Key]
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
 }

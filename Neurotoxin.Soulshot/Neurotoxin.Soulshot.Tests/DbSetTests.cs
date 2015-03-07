@@ -336,21 +336,27 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void ForeignKeysWriteAndReadBack()
         {
+            var sw = new Stopwatch();
+            sw.Start();
             using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
             {
-                //var hungary = new Country {Name = "Hungary"};
+                Console.WriteLine("Init: " + sw.Elapsed);
+                sw.Restart();
+                var hungary = new Country { Name = "Hungary" };
                 var address = new Address
                 {
                     Street = "Futo utca",
-                    //CurrentCity = new City { Name = "Budapest", Country = hungary },
-                    //Hometown = new City { Name = "Mosonmagyarovar", Country = hungary }
-                    CurrentCity = new City { Name = "Budapest" },
-                    Hometown = new City { Name = "Mosonmagyarovar" }
+                    CurrentCity = new City { Name = "Budapest", Country = hungary },
+                    Hometown = new City { Name = "Mosonmagyarovar", Country = hungary }
                 };
                 context.Address.Add(address);
                 context.SaveChanges();
-
+                Console.WriteLine("Insert: " + sw.Elapsed);
+                
+                sw.Restart();
                 var stored = context.Address.First(a => a.Street == "Futo utca");
+                Console.WriteLine("Select: " + sw.Elapsed);
+
                 Assert.AreNotEqual(stored.Id, 0);
                 Assert.AreEqual(address.Street, stored.Street);
                 Assert.AreNotEqual(stored.CurrentCity.Id, 0);

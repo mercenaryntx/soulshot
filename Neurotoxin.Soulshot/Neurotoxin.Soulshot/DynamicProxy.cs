@@ -31,8 +31,9 @@ namespace Neurotoxin.Soulshot
         {
             if (_entityProxyCache.ContainsKey(baseType)) return _entityProxyCache[baseType];
             var typeBuilder = CreateTypeBuilder<IEntityProxy>(baseType);
-            var dirtyProperties = typeBuilder.CreateProperty<HashSet<string>>("DirtyProperties", f => DirtyPropertiesGetter(typeBuilder, f));
-            var state = typeBuilder.CreateProperty<EntityState>("State", f => StateGetter(typeBuilder, f, dirtyProperties.BackingField), f => StateSetter(typeBuilder, f));
+            var generatedFrom = typeBuilder.ImplementInterfaceProperty<IEntityProxy>("GeneratedFrom");
+            var dirtyProperties = typeBuilder.ImplementInterfaceProperty<IEntityProxy>("DirtyProperties");
+            var state = typeBuilder.ImplementInterfaceProperty<IEntityProxy>("State", (tb, f, pi, t) => StateGetter(tb, f, dirtyProperties.BackingField));
 
             foreach (var property in baseType.GetProperties())
             {
@@ -43,6 +44,7 @@ namespace Neurotoxin.Soulshot
 
             typeBuilder.CreateDefaultConstructor(il =>
             {
+                il.SetFieldDefault(generatedFrom.BackingField);
                 il.SetFieldDefault(dirtyProperties.BackingField);
                 il.SetFieldDefault(state.BackingField);
                 il.Emit(OpCodes.Ldarg_0);
@@ -91,13 +93,14 @@ namespace Neurotoxin.Soulshot
         internal TBase Wrap<TBase>(TBase wrappee)
         {
             var baseType = wrappee.GetType();
-            var proxy = (TBase)Create(baseType);
+            var proxy = (IEntityProxy)Create(baseType);
+            proxy.GeneratedFrom = wrappee;
             foreach (var property in baseType.GetProperties())
             {
                 if (!property.CanWrite) continue;
                 property.SetValue(proxy, property.GetValue(wrappee));
             }
-            return proxy;
+            return (TBase)proxy;
         }
 
         private TypeBuilder CreateTypeBuilder<T>(Type baseType)
@@ -187,33 +190,33 @@ namespace Neurotoxin.Soulshot
             return getter;
         }
 
-        private MethodBuilder StateSetter(TypeBuilder typeBuilder, FieldBuilder field)
-        {
-            var setter = typeBuilder.DefineMethod("set_State", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(void), new[] {typeof(EntityState)});
-            typeBuilder.DefineMethodOverride(setter, typeof(IEntityProxy).GetMethod("set_State"));
-            var il = setter.GetILGenerator();
+        //private MethodBuilder StateSetter(TypeBuilder typeBuilder, FieldBuilder field)
+        //{
+        //    var setter = typeBuilder.DefineMethod("set_State", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(void), new[] {typeof(EntityState)});
+        //    typeBuilder.DefineMethodOverride(setter, typeof(IEntityProxy).GetMethod("set_State"));
+        //    var il = setter.GetILGenerator();
 
-            //Generates the code of this._state = value;
-            il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Ldarg_1);
-            il.Emit(OpCodes.Stfld, field);
-            il.Emit(OpCodes.Ret);
+        //    //Generates the code of this._state = value;
+        //    il.Emit(OpCodes.Ldarg_0);
+        //    il.Emit(OpCodes.Ldarg_1);
+        //    il.Emit(OpCodes.Stfld, field);
+        //    il.Emit(OpCodes.Ret);
 
-            return setter;
-        }
+        //    return setter;
+        //}
 
-        private MethodBuilder DirtyPropertiesGetter(TypeBuilder typeBuilder, FieldBuilder field)
-        {
-            var setter = typeBuilder.DefineMethod("get_DirtyProperties", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(HashSet<string>), Type.EmptyTypes);
-            typeBuilder.DefineMethodOverride(setter, typeof(IEntityProxy).GetMethod("get_DirtyProperties"));
-            var il = setter.GetILGenerator();
+        //private MethodBuilder DirtyPropertiesGetter(TypeBuilder typeBuilder, FieldBuilder field)
+        //{
+        //    var setter = typeBuilder.DefineMethod("get_DirtyProperties", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(HashSet<string>), Type.EmptyTypes);
+        //    typeBuilder.DefineMethodOverride(setter, typeof(IEntityProxy).GetMethod("get_DirtyProperties"));
+        //    var il = setter.GetILGenerator();
 
-            //Generates the code of return this._dirtyProperties;
-            il.Emit(OpCodes.Ldarg_0);
-            il.Emit(OpCodes.Ldfld, field);
-            il.Emit(OpCodes.Ret);
+        //    //Generates the code of return this._dirtyProperties;
+        //    il.Emit(OpCodes.Ldarg_0);
+        //    il.Emit(OpCodes.Ldfld, field);
+        //    il.Emit(OpCodes.Ret);
 
-            return setter;
-        }
+        //    return setter;
+        //}
     }
 }

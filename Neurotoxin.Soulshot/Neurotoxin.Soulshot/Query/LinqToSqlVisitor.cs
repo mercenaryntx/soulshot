@@ -19,7 +19,7 @@ namespace Neurotoxin.Soulshot.Query
         private readonly IDbSet _dbSet;
         private readonly Type _targetExpression;
 
-        private readonly Dictionary<object, string> _aliases = new Dictionary<object, string>();
+        private readonly List<TableExpression> _from = new List<TableExpression>();
 
         public LinqToSqlVisitor(IDbSet dbSet, Type targetExpression)
         {
@@ -34,8 +34,7 @@ namespace Neurotoxin.Soulshot.Query
                 var select = _select ?? new SelectExpression();
                 if (select.Selection == null)
                 {
-                    if (!_aliases.Any()) GetAlias(_dbSet.EntityType);
-                    SelectAll(_aliases.ElementAt(0).Value, _dbSet, select, string.Empty);
+                    SelectAll(_dbSet, select, string.Empty);
                 }
                 if (select.From == null) select.From = GetFrom();
                 select.AddWhere(_where);
@@ -58,8 +57,11 @@ namespace Neurotoxin.Soulshot.Query
             throw new NotSupportedException("Invalid target expression: " + _targetExpression);
         }
 
-        private void SelectAll(string alias, IDbSet dbSet, SelectExpression select, string asPrefix)
+        //TODO: detect loops
+        private void SelectAll(IDbSet dbSet, SelectExpression select, string asPrefix, string alias = null)
         {
+            if (alias == null) alias = "t" + _from.Count;
+            _from.Add(new TableExpression(dbSet.Table, alias));
             foreach (var column in dbSet.Columns)
             {
                 var expression = column.ToColumnExpression(alias);
@@ -67,11 +69,11 @@ namespace Neurotoxin.Soulshot.Query
                 select.AddSelection(expression);
                 if (column.ReferenceTable != null)
                 {
-                    var a = GetAlias(column);
+                    var a = "t" + _from.Count;
                     var target = _dbSet.Context.GetDbSet(column.ReferenceTable.BaseType);
                     var fk = target.PrimaryKey.ToColumnExpression(a);
                     select.AddWhere(Expression.MakeBinary(ExpressionType.Equal, column.ToColumnExpression(alias, fk.Type), fk));
-                    SelectAll(a, target, select, string.Format("{0}{1}.", asPrefix, column.ColumnName));
+                    SelectAll(target, select, string.Format("{0}{1}.", asPrefix, column.ColumnName), a);
                 }
             }
         }
@@ -79,15 +81,8 @@ namespace Neurotoxin.Soulshot.Query
         private Expression GetFrom()
         {
             Expression from = null;
-            foreach (var a in _aliases)
-            {
-                var type = a.Key is Type ? (Type)a.Key : a.Key.GetType();
-                var columnInfo = a.Key as ColumnInfo;
-                if (columnInfo != null) type = columnInfo.ReferenceTable.BaseType;
-                var columnInfoCollection = a.Key as ColumnInfoCollection;
-                if (columnInfoCollection != null) type = columnInfoCollection.BaseType;
-                
-                Expression expression = new TableExpression(_dbSet.Context.GetDbSet(type).Table, a.Value);
+            foreach (Expression expression in _from)
+            {                
                 from = from == null ? expression : new ListingExpression(from, expression);
             }
             return from ?? new TableExpression(_dbSet.Table);
@@ -186,7 +181,8 @@ namespace Neurotoxin.Soulshot.Query
                 var column = _dbSet.Columns.SingleOrDefault(c => c.DescribesProperty(mi));
                 if (column != null)
                 {
-                    var alias = GetAlias(declaringType);
+                    //TODO: handle aliases
+                    var alias = "t0";
                     return column.ToColumnExpression(alias);
                 }
 
@@ -278,19 +274,5 @@ namespace Neurotoxin.Soulshot.Query
             };
         }
 
-        private string GetAlias(object obj)
-        {
-            string alias;
-            if (_aliases.ContainsKey(obj))
-            {
-                alias = _aliases[obj];
-            }
-            else
-            {
-                alias = "t" + _aliases.Count;
-                _aliases.Add(obj, alias);
-            }
-            return alias;
-        }
     }
 }

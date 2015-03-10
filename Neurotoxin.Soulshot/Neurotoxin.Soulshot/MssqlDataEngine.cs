@@ -52,6 +52,25 @@ namespace Neurotoxin.Soulshot
             _connection.ChangeDatabase(database);
         }
 
+        protected override IEnumerable<ConstraintInfo> GetForeignReferences(TableAttribute table)
+        {
+            var cmd = string.Format(@"SELECT p.name as TableName, ps.name as TableSchema, fk.name as ConstraintName, cc.name as TargetColumn, pc.name as SourceColumn
+                                    FROM sys.foreign_key_columns AS r
+                                    INNER JOIN sys.tables AS c ON c.object_id = r.referenced_object_id
+                                    INNER JOIN sys.schemas AS cs ON cs.schema_id = c.schema_id
+                                    INNER JOIN sys.objects AS fk ON fk.object_id = r.constraint_object_id
+                                    INNER JOIN sys.tables AS p ON p.object_id = r.parent_object_id
+                                    INNER JOIN sys.schemas AS ps ON ps.schema_id = p.schema_id
+                                    INNER JOIN sys.columns AS cc ON cc.column_id = r.referenced_column_id AND cc.object_id = c.object_id
+                                    INNER JOIN sys.columns AS pc ON pc.column_id = r.parent_column_id AND pc.object_id = p.object_id
+                                    WHERE c.name = '{0}' and cs.name = '{1}'", table.Name, table.Schema);
+            if (!ColumnMapper.ContainsKey(typeof (ConstraintInfo)))
+            {
+                ColumnMapper.Map<ConstraintInfo>();
+            }
+            return ExecuteQuery<ConstraintInfo>(cmd);
+        }
+
         public override bool TableExists(TableAttribute table)
         {
             var cmd = string.Format(@"select count(*) from sys.objects o
@@ -160,11 +179,16 @@ namespace Neurotoxin.Soulshot
             return ExecuteScalar(visitor.CommandText);
         }
 
+        private IEnumerable<T> ExecuteQuery<T>(string command)
+        {
+            return (IEnumerable<T>) ExecuteQuery(typeof(T), command);
+        }
+
         private IEnumerable ExecuteQuery(Type type, string command)
         {
             Console.WriteLine(command);
 
-            var columns = ColumnMapper.Cache.ContainsKey(type) ? ColumnMapper.Cache[type] : null;
+            var columns = ColumnMapper.ContainsKey(type) ? ColumnMapper[type] : null;
             var listType = typeof(List<>).MakeGenericType(type);
             var addMethod = listType.GetMethod("Add");
             var list = (IEnumerable)Activator.CreateInstance(listType);

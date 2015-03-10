@@ -366,5 +366,20 @@ namespace Neurotoxin.Soulshot.Tests
             }
         }
 
+        [TestMethod]
+        public void CascadeDelete()
+        {
+            var sw = new Stopwatch();
+            sw.Start();
+            using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                Console.WriteLine("Init: " + sw.Elapsed);
+                sw.Restart();
+
+                context.Address.Remove(a => a.Street == "Futo utca");
+                Console.WriteLine("Delete: " + sw.Elapsed);
+            }            
+        }
+
     }
 }

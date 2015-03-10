@@ -27,18 +27,6 @@ namespace Neurotoxin.Soulshot
             return TableExists(t.GetTableAttribute());
         }
 
-        //public List<ColumnInfo> CreateTable<TEntity>()
-        //{
-        //    return CreateTable<TEntity>(typeof(TEntity).GetTableAttribute());
-        //}
-
-        //public List<ColumnInfo> CreateTable<TEntity>(TableAttribute table)
-        //{
-        //    var columns = ColumnMapper.Map<TEntity>(table);
-        //    CreateTable(table, columns);
-        //    return columns;
-        //}
-
         public virtual void CreateTable(TableAttribute table, IEnumerable<ColumnInfo> columns, bool generateConstraints = true)
         {
             var create = new CreateTableExpression(new TableExpression(table));
@@ -49,12 +37,7 @@ namespace Neurotoxin.Soulshot
             }
 
             if (generateConstraints)
-            {
-                foreach (var constraint in GetConstraints(table, columns, ExpressionType.Default))
-                {
-                    create.AddConstraint(constraint);
-                }
-            }
+                create.AddConstraint(GetPrimaryKeyConstraint(table, columns, ExpressionType.Default));
             
             ExecuteNonQuery(create);
             foreach (var column in columns.Where(c => c.IndexType.HasValue))
@@ -71,17 +54,28 @@ namespace Neurotoxin.Soulshot
 
         public virtual void AppendConstraints(TableAttribute table, IEnumerable<ColumnInfo> columns)
         {
+            AppendConstraints(table, GetPrimaryKeyConstraint(table, columns, ExpressionType.Add));
+        }
+
+        public virtual void AppendConstraints(TableAttribute table, ConstraintExpression constraint)
+        {
             var alter = new AlterTableExpression(new TableExpression(table));
-            foreach (var constraint in GetConstraints(table, columns, ExpressionType.Add))
+            alter.AddConstraint(constraint);
+            ExecuteNonQuery(alter);
+        }
+
+        public virtual void RemoveConstraint(TableAttribute table, IEnumerable<string> constraints)
+        {
+            var alter = new AlterTableExpression(new TableExpression(table));
+            foreach (var constraint in constraints)
             {
-                alter.AddConstraint(constraint);
+                alter.DropConstraint(constraint);
             }
             ExecuteNonQuery(alter);
         }
 
-        private List<ConstraintExpression> GetConstraints(TableAttribute table, IEnumerable<ColumnInfo> columns, ExpressionType nodeType)
+        private ConstraintExpression GetPrimaryKeyConstraint(TableAttribute table, IEnumerable<ColumnInfo> columns, ExpressionType nodeType)
         {
-            var result = new List<ConstraintExpression>();
             var pk = new ConstraintExpression("PK_" + table.FullName.Replace(".", "_"), nodeType)
             {
                 ConstraintType = ConstraintType.PrimaryKey,
@@ -91,8 +85,7 @@ namespace Neurotoxin.Soulshot
             {
                 pk.AddColumn(new ColumnOrderExpression(column.ToColumnExpression(), ListSortDirection.Ascending));
             }
-            if (pk.Columns != null) result.Insert(0, pk);
-            return result;
+            return pk.Columns != null ? pk : null;
         }
 
         public ColumnInfoCollection UpdateTable<TEntity>(TableAttribute table, ColumnInfoCollection actualColumns, ColumnInfoCollection storedColumns)
@@ -101,13 +94,31 @@ namespace Neurotoxin.Soulshot
             {
                 if (storedColumns != null && !actualColumns.Equals(storedColumns))
                 {
-                    //TODO: what if there's constraint change only?
                     var tmpTable = new TableAttribute(table.Name + "_tmp", table.Schema);
                     CreateTable(tmpTable, actualColumns, false);
                     CopyValues(table, tmpTable, actualColumns.Where(c => storedColumns.Any(cc => cc.ColumnName == c.ColumnName)));
+                    var foreignReferences = GetForeignReferences(table).GroupBy(k => new TableAttribute(k.TableName, k.TableSchema));
+                    foreach (var group in foreignReferences)
+                    {
+                        RemoveConstraint(group.Key, group.Select(c => c.ConstraintName));
+                    }
                     DeleteTable(table);
                     RenameTable(tmpTable, table);
                     AppendConstraints(table, actualColumns);
+                    foreach (var group in foreignReferences)
+                    {
+                        var constraint = group.Select(c => new ConstraintExpression(c.ConstraintName, ExpressionType.Add)
+                            {
+                                ConstraintType = ConstraintType.ForeignKey,
+                                Columns = new ColumnExpression(c.SourceColumn),
+                                ReferenceTable = new TableExpression(table),
+                                ReferenceColumn = new ColumnExpression(c.TargetColumn)
+                            });
+                        foreach (var expression in constraint)
+                        {
+                            AppendConstraints(group.Key, expression);
+                        }
+                    }
                 }
             }
             else
@@ -240,6 +251,8 @@ namespace Neurotoxin.Soulshot
             }
             return instance;
         }
+
+        protected abstract IEnumerable<ConstraintInfo> GetForeignReferences(TableAttribute table);
 
         public abstract bool TableExists(TableAttribute table);
         public abstract void RenameTable(TableAttribute oldName, TableAttribute newName);

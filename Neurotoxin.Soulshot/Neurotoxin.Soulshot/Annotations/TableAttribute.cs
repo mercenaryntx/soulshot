@@ -46,5 +46,27 @@ namespace Neurotoxin.Soulshot.Annotations
             return FullNameWithBrackets;
         }
 
+        protected bool Equals(TableAttribute other)
+        {
+            return base.Equals(other) && 
+                   string.Equals(Name, other.Name) && 
+                   string.Equals(Schema, other.Schema);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != GetType()) return false;
+            return Equals((TableAttribute)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return (base.GetHashCode()*397) ^ (Name != null ? Name.GetHashCode() : 0);
+            }
+        }
     }
 }

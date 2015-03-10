@@ -91,6 +91,9 @@ namespace Neurotoxin.Soulshot.Query
             var createIndexExpression = node as CreateIndexExpression;
             if (createIndexExpression != null) return VisitCreateIndex(createIndexExpression);
 
+            var objectNameExpression = node as ObjectNameExpression;
+            if (objectNameExpression != null) return VisitObjectName(objectNameExpression);
+
             return base.Visit(node);
         }
 
@@ -126,24 +129,42 @@ namespace Neurotoxin.Soulshot.Query
         {
             switch (node.NodeType)
             {
+                case ExpressionType.Default:
                 case ExpressionType.Add:
-                    Append("ADD");
+                    if (node.NodeType == ExpressionType.Add) Append("ADD");
+                    Append("CONSTRAINT");
+                    Visit(node.Name);
+                    switch (node.ConstraintType)
+                    {
+                        case ConstraintType.PrimaryKey:
+                            Append("PRIMARY KEY");
+                            if (node.IndexType.HasFlag(IndexType.Unique)) Append("UNIQUE");
+                            Append(node.IndexType.HasFlag(IndexType.Clustered) ? "CLUSTERED" : "NONCLUSTERED");
+                            break;
+                        case ConstraintType.ForeignKey:
+                            Append("FOREIGN KEY");
+                            break;
+                        default:
+                            throw new NotSupportedException(node.ConstraintType.ToString());
+                    }
+                    Append("(");
+                    Visit(node.Columns);
+                    Append(")", false);
+                    if (node.ReferenceTable != null)
+                    {
+                        Append("REFERENCES");
+                        Visit(node.ReferenceTable);
+                        Append("(", false);
+                        Visit(node.ReferenceColumn);
+                        Append(")", false);
+                    }
                     break;
                 case ExpressionType.Subtract:
-                    Append("DROP");
+                    Append("DROP CONSTRAINT");
+                    Visit(node.Name);
                     break;
-            }
-            Append("CONSTRAINT [");
-            Append(node.Name);
-            Append("]", false);
-
-            if (node.NodeType != ExpressionType.Subtract)
-            {
-                VisitConstraintType(node.ConstraintType);
-                VisitIndexType(node.IndexType);
-                Append("(");
-                Visit(node.Columns);
-                Append(")", false);
+                default:
+                    throw new NotSupportedException("Invalid node type: " + node.NodeType);
             }
             return node;
         }
@@ -274,17 +295,12 @@ namespace Neurotoxin.Soulshot.Query
             if (_useAliases && !string.IsNullOrEmpty(node.Alias))
             {
                 Append(node.Alias);
-                Append(".[", false);
-                Append(node.ColumnName, false);
-                Append("]", false);
+                Append(".", false);
             }
-            else
-            {
-                Append("[", false);
-                Append(node.ColumnName, false);
-                Append("]", false);
-            }
-            if (!string.IsNullOrEmpty(node.As) && node.As != node.ColumnName)
+
+            Visit(node.ColumnName);
+
+            if (!string.IsNullOrEmpty(node.As) && node.As != node.ColumnName.Name)
             {
                 Append("AS '");
                 Append(node.As, false);
@@ -314,7 +330,7 @@ namespace Neurotoxin.Soulshot.Query
             else
             {
                 //TODO: use DbSet instead
-                var pkFields = _dataEngine.ColumnMapper.Cache[c.ReferenceTable.BaseType].Where(cc => cc.IsIdentity).Select(cc => cc.ColumnName);
+                var pkFields = _dataEngine.ColumnMapper[c.ReferenceTable.BaseType].Where(cc => cc.IsIdentity).Select(cc => cc.ColumnName);
 
                 if (!c.IsNullable) Append("NOT NULL");
                 Append("FOREIGN KEY REFERENCES");
@@ -393,6 +409,14 @@ namespace Neurotoxin.Soulshot.Query
             return node;
         }
 
+        protected virtual Expression VisitObjectName(ObjectNameExpression node)
+        {
+            Append("[");
+            Append(node.Name);
+            Append("]", false);
+            return node;
+        }
+
         protected override Expression VisitBinary(BinaryExpression node)
         {
             VisitBinaryBranch(node.Left, node.NodeType);
@@ -416,21 +440,6 @@ namespace Neurotoxin.Soulshot.Query
         {
             Append(_dataEngine.GetLiteral(node.Value));
             return node;
-        }
-
-        protected virtual void VisitConstraintType(ConstraintType type)
-        {
-            switch (type)
-            {
-                case ConstraintType.PrimaryKey:
-                    Append("PRIMARY KEY");
-                    break;
-                case ConstraintType.ForeignKey:
-                    Append("FOREIGN KEY");
-                    break;
-                default:
-                    throw new NotSupportedException(type.ToString());
-            }
         }
 
         protected virtual void VisitIndexType(IndexType type)

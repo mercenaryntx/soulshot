@@ -16,19 +16,37 @@ namespace Neurotoxin.Soulshot
 
         private readonly Dictionary<Type, ColumnTypeAttribute> _defaultTypeAttributes = new Dictionary<Type, ColumnTypeAttribute>();
         private readonly Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase> _mappers = new Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase>();
-
-        public readonly Dictionary<Type, ColumnInfoCollection> Cache = new Dictionary<Type, ColumnInfoCollection>();
+        private readonly Dictionary<Type, ColumnInfoCollection> _typeCache = new Dictionary<Type, ColumnInfoCollection>();
         public DbContext Context { get; internal set; }
 
         public ColumnMapper()
         {
             var mapperbase = typeof (MapperBase);
-            foreach (var type in mapperbase.Assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && mapperbase.IsAssignableFrom(t) && !t.IsGenericType))
+            foreach (
+                var type in
+                    mapperbase.Assembly.GetTypes()
+                        .Where(t => t.IsClass && !t.IsAbstract && mapperbase.IsAssignableFrom(t) && !t.IsGenericType))
             {
-                var mapper = (MapperBase)Activator.CreateInstance(type);
+                var mapper = (MapperBase) Activator.CreateInstance(type);
                 _defaultTypeAttributes.Add(mapper.PropertyType, mapper.ColumnType);
                 _mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(mapper.PropertyType, mapper.ColumnType), mapper);
             }
+        }
+
+        public ColumnInfoCollection this[Type key]
+        {
+            get { return _typeCache[key]; }
+        }
+
+        public bool ContainsKey(Type key)
+        {
+            return _typeCache.ContainsKey(key);
+        }
+
+        public ColumnInfoCollection Map<TEntity>(TableAttribute table = null)
+        {
+            HashSet<IDbSet> relatedDbSets;
+            return Map<TEntity>(table, out relatedDbSets);
         }
 
         public ColumnInfoCollection Map<TEntity>(TableAttribute table, out HashSet<IDbSet> relatedDbSets)
@@ -45,8 +63,8 @@ namespace Neurotoxin.Soulshot
             if (types.Count > 1)
                 columns.Add(DiscriminatorColumnName, new ColumnInfo
                 {
-                    TableName = table.Name,
-                    TableSchema = table.Schema,
+                    TableName = table != null ? table.Name : null,
+                    TableSchema = table != null ? table.Schema : null,
                     ColumnName = DiscriminatorColumnName,
                     ColumnType = "nvarchar(255)",
                     IsDiscriminatorColumn = true,
@@ -87,8 +105,8 @@ namespace Neurotoxin.Soulshot
 
                 columns.Add(columnName, new ColumnInfo
                 {
-                    TableName = table.Name,
-                    TableSchema = table.Schema,
+                    TableName = table != null ? table.Name : null,
+                    TableSchema = table != null ? table.Schema : null,
                     ColumnName = columnName,
                     ColumnType = columnType,
                     DeclaringTypes = new List<Type> { pi.DeclaringType },
@@ -102,7 +120,7 @@ namespace Neurotoxin.Soulshot
             }
 
             var list = new ColumnInfoCollection(typeof(TEntity), table, columns.Values);
-            Cache[baseType] = list;
+            _typeCache[baseType] = list;
             return list;
         }
 

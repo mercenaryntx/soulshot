@@ -77,6 +77,7 @@
     <Compile Include="Annotations\ColumnTypeAttribute.cs" />
     <Compile Include="ColumnInfoCollection.cs" />
     <Compile Include="ColumnMapper.cs" />
+    <Compile Include="ConstraintInfo.cs" />
     <Compile Include="DataEngineBase.cs" />
     <Compile Include="DbContext.cs" />
     <Compile Include="DbSet.cs" />
@@ -141,6 +142,7 @@
     <Compile Include="Query\IHasWhereExpressionExtensions.cs" />
     <Compile Include="Query\InsertExpression.cs" />
     <Compile Include="Query\ListingExpression.cs" />
+    <Compile Include="Query\ObjectNameExpression.cs" />
     <Compile Include="Query\OrderByExpression.cs" />
     <Compile Include="Query\SelectExpression.cs" />
     <Compile Include="Query\SetExpression.cs" />

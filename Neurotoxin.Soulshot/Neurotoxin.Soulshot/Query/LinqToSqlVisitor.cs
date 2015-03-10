@@ -85,7 +85,7 @@ namespace Neurotoxin.Soulshot.Query
             {                
                 from = from == null ? expression : new ListingExpression(from, expression);
             }
-            return from ?? new TableExpression(_dbSet.Table);
+            return from ?? new TableExpression(_dbSet.Table, "t0");
         }
 
         protected override Expression VisitLambda<T>(Expression<T> node)

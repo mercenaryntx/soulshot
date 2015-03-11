@@ -4,6 +4,7 @@
     {
         //public DbSet<Person> People { get; set; }
         public DbSet<Address> Address { get; set; }
+        public DbSet<Country> Countries { get; set; }
 
         public TestContext2(string connectionString) : base(connectionString)
         {

@@ -17,8 +17,7 @@ namespace Neurotoxin.Soulshot.Tests
         {
             var table = new TableAttribute("Lorem", "ipsum");
             var mapper = new ColumnMapper();
-            HashSet<IDbSet> relatedDbSets;
-            var columns = mapper.Map<EntityBase>(table, out relatedDbSets);
+            var columns = mapper.Map<EntityBase>(table);
 
             Assert.IsTrue(columns.All(c => c.TableName == "Lorem" && c.TableSchema == "ipsum"));
 
@@ -379,6 +378,20 @@ namespace Neurotoxin.Soulshot.Tests
                 context.Address.Remove(a => a.Street == "Futo utca");
                 Console.WriteLine("Delete: " + sw.Elapsed);
             }            
+        }
+
+        [TestMethod]
+        public void OneToMany()
+        {
+            var sw = new Stopwatch();
+            sw.Start();
+            using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                Console.WriteLine("Init: " + sw.Elapsed);
+                sw.Restart();
+                var country = context.Countries.First(c => c.Name == "Hungary");
+                Console.WriteLine("Select: " + sw.Elapsed);
+            }
         }
 
     }

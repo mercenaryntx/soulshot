@@ -61,9 +61,9 @@ namespace Neurotoxin.Soulshot
 
         public void Init()
         {
-            HashSet<IDbSet> relatedDbSets;
-            var actualColumns = _dataEngine.ColumnMapper.Map<TEntity>(Table, out relatedDbSets);
-            _relatedDbSets = relatedDbSets;
+            var actualColumns = _dataEngine.ColumnMapper.Map<TEntity>(Table);
+
+            _relatedDbSets = new HashSet<IDbSet>(actualColumns.Where(c => c.ReferenceTable != null).Select(c => _context.GetDbSet(c.ReferenceTable.BaseType)));
             Columns = _dataEngine.UpdateTable<TEntity>(Table, actualColumns, Columns);
             Provider = new SqlQueryProvider(_dataEngine, this);
             Expression = Expression.Constant(this);

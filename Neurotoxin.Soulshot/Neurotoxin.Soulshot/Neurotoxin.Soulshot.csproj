@@ -78,6 +78,7 @@
     <Compile Include="ColumnInfoCollection.cs" />
     <Compile Include="ColumnMapper.cs" />
     <Compile Include="ConstraintInfo.cs" />
+    <Compile Include="CrossReference.cs" />
     <Compile Include="DataEngineBase.cs" />
     <Compile Include="DbContext.cs" />
     <Compile Include="DbSet.cs" />

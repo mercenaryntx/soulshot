@@ -292,13 +292,17 @@ namespace Neurotoxin.Soulshot.Query
 
         protected virtual Expression VisitColumn(ColumnExpression node)
         {
+            var doSpace = true;
             if (_useAliases && !string.IsNullOrEmpty(node.Alias))
             {
                 Append(node.Alias);
                 Append(".", false);
+                doSpace = false;
             }
 
-            Visit(node.ColumnName);
+            Append("[", doSpace);
+            Append(node.ColumnName.Name);
+            Append("]", false);
 
             if (!string.IsNullOrEmpty(node.As) && node.As != node.ColumnName.Name)
             {

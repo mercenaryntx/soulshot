@@ -10,18 +10,25 @@ namespace Neurotoxin.Soulshot
     {
         public Type BaseType { get; private set; }
         public TableAttribute Table { get; private set; }
-        private readonly Dictionary<string, ColumnInfo> _dictionary;
+        public List<CrossReference> CrossReferences { get; private set; }
+        private Dictionary<string, ColumnInfo> _dictionary;
 
         public int Count
         {
             get { return _dictionary.Count; }
         }
 
-        public ColumnInfoCollection(Type baseType, TableAttribute table, IEnumerable<ColumnInfo> collection)
+        public ColumnInfoCollection(Type baseType, TableAttribute table, IEnumerable<ColumnInfo> collection = null)
         {
             BaseType = baseType;
             Table = table;
-            if (collection != null) _dictionary = collection.ToDictionary(c => c.ColumnName, c => c);
+            CrossReferences = new List<CrossReference>();
+            if (collection != null) SetCollection(collection);
+        }
+
+        public void SetCollection(IEnumerable<ColumnInfo> collection)
+        {
+            _dictionary = collection.ToDictionary(c => c.ColumnName, c => c);
         }
 
         public IEnumerator<ColumnInfo> GetEnumerator()

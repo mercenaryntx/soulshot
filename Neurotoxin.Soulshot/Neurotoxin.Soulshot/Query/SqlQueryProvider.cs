@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using Neurotoxin.Soulshot.Annotations;
@@ -54,13 +55,13 @@ namespace Neurotoxin.Soulshot.Query
         public TResult Execute<TResult>(Expression expression)
         {
             var type = typeof(TResult);
-            var mapper = DataEngine.ColumnMapper.TryGetMapper(type);
-            if (mapper != null)
-            {
-                var sqlExpression = ExecuteImp(expression, typeof(SelectExpression));
-                var scalar = DataEngine.ExecuteScalar(sqlExpression, type);
-                return (TResult)scalar;
-            }
+            //var mapper = DataEngine.ColumnMapper.TryGetMapper(type);
+            //if (mapper != null)
+            //{
+            //    var sqlExpression = ExecuteImp(expression, typeof(SelectExpression));
+            //    var scalar = DataEngine.ExecuteScalar(sqlExpression, type);
+            //    return (TResult)scalar;
+            //}
             
             var elementType = TypeSystem.GetElementType(expression.Type);
             var list = Select(expression);
@@ -79,6 +80,9 @@ namespace Neurotoxin.Soulshot.Query
                         return Single<TResult>(enumerator, true);
                     case "Single":
                         return Single<TResult>(enumerator, false);
+                    case "Count":
+                        enumerator.MoveNext();
+                        return (TResult)enumerator.Current;
                     default:
                         throw new NotSupportedException(methodCallExpression.Method.Name);
                 }

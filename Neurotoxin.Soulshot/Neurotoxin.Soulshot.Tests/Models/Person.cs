@@ -34,5 +34,6 @@ namespace Neurotoxin.Soulshot.Tests.Models
         [Key]
         public int Id { get; set; }
         public string Name { get; set; }
+        public IList<City> Cities { get; set; }
     }
 }

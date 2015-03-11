@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+﻿using System;
 
 namespace Neurotoxin.Soulshot.Annotations
 {
@@ -14,8 +14,11 @@ namespace Neurotoxin.Soulshot.Annotations
 
     public class CrossTableReferenceAttribute : ColumnTypeAttribute
     {
-        public CrossTableReferenceAttribute() : base("void")
+        public Type EntityType { get; private set; }
+
+        public CrossTableReferenceAttribute(Type entityType) : base(null)
         {
+            EntityType = entityType;
         }
     }
 }

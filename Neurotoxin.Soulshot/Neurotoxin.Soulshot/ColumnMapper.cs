@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Security.Policy;
 using Neurotoxin.Soulshot.Annotations;
 using Neurotoxin.Soulshot.Extensions;
 using Neurotoxin.Soulshot.Mappers;
@@ -45,15 +44,16 @@ namespace Neurotoxin.Soulshot
 
         public ColumnInfoCollection Map<TEntity>(TableAttribute table = null)
         {
-            HashSet<IDbSet> relatedDbSets;
-            return Map<TEntity>(table, out relatedDbSets);
+            return Map(typeof(TEntity), table);
         }
 
-        public ColumnInfoCollection Map<TEntity>(TableAttribute table, out HashSet<IDbSet> relatedDbSets)
+        public ColumnInfoCollection Map(Type baseType, TableAttribute table = null)
         {
-            relatedDbSets = new HashSet<IDbSet>();
+            if (ContainsKey(baseType)) return this[baseType];
+
+            var collection = new ColumnInfoCollection(baseType, table);
             var columns = new Dictionary<string, ColumnInfo>();
-            var baseType = typeof(TEntity);
+
             var types = baseType.Assembly.GetTypes()
                                          .Where(baseType.IsAssignableFrom)
                                          .OrderBy(t => t.GetGenerationNumberFrom(baseType))
@@ -75,13 +75,17 @@ namespace Neurotoxin.Soulshot
             {
                 if (IsIgnorable(pi)) continue;
                 var columnTypeAttribute = GetColumnType(pi);
-                if (columnTypeAttribute is CrossTableReferenceAttribute) continue;
+                var crossTableReferenceAttribute = columnTypeAttribute as CrossTableReferenceAttribute;
+                if (crossTableReferenceAttribute != null)
+                {
+                    collection.CrossReferences.Add(new CrossReference(crossTableReferenceAttribute.EntityType));
+                    continue;
+                }
                 var foreignKeyAttribute = columnTypeAttribute as ForeignKeyAttribute;
                 ColumnInfoCollection referenceTable = null;
                 if (foreignKeyAttribute != null)
                 {
                     referenceTable = foreignKeyAttribute.DbSet.Columns;
-                    relatedDbSets.Add(foreignKeyAttribute.DbSet);
                 }
 
                 var columnType = columnTypeAttribute.ToString();
@@ -119,9 +123,9 @@ namespace Neurotoxin.Soulshot
                 });
             }
 
-            var list = new ColumnInfoCollection(typeof(TEntity), table, columns.Values);
-            _typeCache[baseType] = list;
-            return list;
+            collection.SetCollection(columns.Values);
+            _typeCache[baseType] = collection;
+            return collection;
         }
 
         public object MapToType(object value, PropertyInfo pi = null)
@@ -190,25 +194,24 @@ namespace Neurotoxin.Soulshot
         {
             if (IsEnum(type)) type = typeof(Enum);
             if (_defaultTypeAttributes.ContainsKey(type)) return _defaultTypeAttributes[type];
+
             var foreignKey = IsEntityBasedProperty(type);
-            if (foreignKey != null)
+            if (foreignKey == null) throw new NotSupportedException("Unmappable type: " + type.FullName);
+
+            if (type.IsGenericType)
             {
-                if (type.IsGenericType)
-                {
-                    _defaultTypeAttributes.Add(type, new CrossTableReferenceAttribute());
-                }
-                else
-                {
-                    var targetDbSet = Context.EnsureTable(type);
-                    var attribute = new ForeignKeyAttribute(GetColumnType(foreignKey).ToString(), targetDbSet);
-                    var mapperType = typeof (ForeignKeyMapper<>).MakeGenericType(type);
-                    var mapper = (MapperBase)Activator.CreateInstance(mapperType, attribute, targetDbSet);
-                    _mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(type, attribute), mapper);
-                    _defaultTypeAttributes.Add(type, attribute);
-                }
-                return _defaultTypeAttributes[type];
+                _defaultTypeAttributes.Add(type, new CrossTableReferenceAttribute(type.GenericTypeArguments.First()));
             }
-            throw new NotSupportedException("Unmappable type: " + type.FullName);
+            else
+            {
+                var targetDbSet = Context.EnsureTable(type);
+                var attribute = new ForeignKeyAttribute(GetColumnType(foreignKey).ToString(), targetDbSet);
+                var mapperType = typeof (ForeignKeyMapper<>).MakeGenericType(type);
+                var mapper = (MapperBase)Activator.CreateInstance(mapperType, attribute, targetDbSet);
+                _mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(type, attribute), mapper);
+                _defaultTypeAttributes.Add(type, attribute);
+            }
+            return _defaultTypeAttributes[type];
         }
 
         private bool IsEnum(Type type)

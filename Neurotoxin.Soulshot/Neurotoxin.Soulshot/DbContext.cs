@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Reflection;
 using Neurotoxin.Soulshot.Annotations;
@@ -9,14 +10,16 @@ namespace Neurotoxin.Soulshot
 {
     public abstract class DbContext : IDisposable
     {
+        private readonly bool _codeFirst;
         private readonly DbSet<ColumnInfo> _migrationHistory;
         private readonly List<IDbSet> _dbSets = new List<IDbSet>();
         private readonly Type _iDbSet = typeof(IDbSet);
 
         internal IDataEngine DataEngine { get; set; }
 
-        protected DbContext(string connectionString)
+        protected DbContext(string connectionString, bool? codeFirst = null)
         {
+            _codeFirst = codeFirst ?? ConfigurationManager.AppSettings["CodeFirst"] != "false";
             DataEngine = new MssqlDataEngine(connectionString);
             DataEngine.ColumnMapper.Context = this;
             _migrationHistory = CreateDbSet<ColumnInfo>();
@@ -41,6 +44,8 @@ namespace Neurotoxin.Soulshot
             if (table == null) table = type.GetTableAttribute();
             var existing = GetDbSet(table);
             if (existing != null) return existing;
+
+            if (!_codeFirst) throw new Exception("Table not exists: " + table.FullName);
 
             var columns = new ColumnInfoCollection(type, table, _migrationHistory.Where(e => e.TableName == table.Name && e.TableSchema == table.Schema));
             var dbSet = CreateDbSet(type, table, columns);

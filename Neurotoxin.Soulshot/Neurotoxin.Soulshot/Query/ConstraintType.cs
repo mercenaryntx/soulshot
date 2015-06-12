@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Neurotoxin.Soulshot.Query
+﻿namespace Neurotoxin.Soulshot.Query
 {
     public enum ConstraintType
     {

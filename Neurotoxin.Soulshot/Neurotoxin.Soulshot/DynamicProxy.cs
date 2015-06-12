@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using Neurotoxin.Soulshot.Annotations;
 using Neurotoxin.Soulshot.Extensions;
 
 namespace Neurotoxin.Soulshot
@@ -35,7 +36,7 @@ namespace Neurotoxin.Soulshot
             var dirtyProperties = typeBuilder.ImplementInterfaceProperty<IEntityProxy>("DirtyProperties");
             var state = typeBuilder.ImplementInterfaceProperty<IEntityProxy>("State", (tb, f, pi, t) => StateGetter(tb, f, dirtyProperties.BackingField));
 
-            foreach (var property in baseType.GetProperties())
+            foreach (var property in baseType.GetProperties().Where(p => !p.HasAttribute<IgnoreAttribute>()))
             {
                 var getter = PropertyGetter(typeBuilder, property);
                 var setter = PropertySetter(typeBuilder, property, dirtyProperties.BackingField);
@@ -121,7 +122,7 @@ namespace Neurotoxin.Soulshot
         private MethodBuilder PropertyGetter(TypeBuilder typeBuilder, PropertyInfo property)
         {
             var baseGetter = property.GetGetMethod(true);
-            if (baseGetter == null) return null;
+            if (baseGetter == null || !baseGetter.IsVirtual) return null;
 
             const MethodAttributes methodAttributes = MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual;
             var methodAccess = baseGetter.Attributes & MethodAttributes.MemberAccessMask;
@@ -132,13 +133,16 @@ namespace Neurotoxin.Soulshot
             il.Emit(OpCodes.Ldarg_0);
             il.Emit(OpCodes.Call, baseGetter);
             il.Emit(OpCodes.Ret);
+
+            typeBuilder.DefineMethodOverride(getter, baseGetter);
+
             return getter;
         }
 
         private MethodBuilder PropertySetter(TypeBuilder typeBuilder, PropertyInfo property, FieldBuilder dirtyProperties)
         {
             var baseSetter = property.GetSetMethod(true);
-            if (baseSetter == null) return null;
+            if (baseSetter == null || !baseSetter.IsVirtual) return null;
 
             const MethodAttributes methodAttributes = MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual;
             var methodAccess = baseSetter.Attributes & MethodAttributes.MemberAccessMask;
@@ -155,6 +159,8 @@ namespace Neurotoxin.Soulshot
             il.Emit(OpCodes.Callvirt, dirtyProperties.FieldType.GetMethod("Add"));
             il.Emit(OpCodes.Pop);
             il.Emit(OpCodes.Ret);
+
+            typeBuilder.DefineMethodOverride(setter, baseSetter);
 
             return setter;
         }
@@ -189,34 +195,5 @@ namespace Neurotoxin.Soulshot
 
             return getter;
         }
-
-        //private MethodBuilder StateSetter(TypeBuilder typeBuilder, FieldBuilder field)
-        //{
-        //    var setter = typeBuilder.DefineMethod("set_State", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(void), new[] {typeof(EntityState)});
-        //    typeBuilder.DefineMethodOverride(setter, typeof(IEntityProxy).GetMethod("set_State"));
-        //    var il = setter.GetILGenerator();
-
-        //    //Generates the code of this._state = value;
-        //    il.Emit(OpCodes.Ldarg_0);
-        //    il.Emit(OpCodes.Ldarg_1);
-        //    il.Emit(OpCodes.Stfld, field);
-        //    il.Emit(OpCodes.Ret);
-
-        //    return setter;
-        //}
-
-        //private MethodBuilder DirtyPropertiesGetter(TypeBuilder typeBuilder, FieldBuilder field)
-        //{
-        //    var setter = typeBuilder.DefineMethod("get_DirtyProperties", MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.Virtual, typeof(HashSet<string>), Type.EmptyTypes);
-        //    typeBuilder.DefineMethodOverride(setter, typeof(IEntityProxy).GetMethod("get_DirtyProperties"));
-        //    var il = setter.GetILGenerator();
-
-        //    //Generates the code of return this._dirtyProperties;
-        //    il.Emit(OpCodes.Ldarg_0);
-        //    il.Emit(OpCodes.Ldfld, field);
-        //    il.Emit(OpCodes.Ret);
-
-        //    return setter;
-        //}
     }
 }

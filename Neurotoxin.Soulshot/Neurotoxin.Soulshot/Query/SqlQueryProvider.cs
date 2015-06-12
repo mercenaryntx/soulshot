@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
-using Neurotoxin.Soulshot.Annotations;
 
 namespace Neurotoxin.Soulshot.Query
 {
@@ -39,10 +37,11 @@ namespace Neurotoxin.Soulshot.Query
             var mapper = DataEngine.ColumnMapper.TryGetMapper(type);
             if (mapper != null)
             {
-                var list = (List<TElement>) Select(expression);
+                var list = (List<TElement>)Select(expression, TypeSystem.GetElementType(expression.Type));
                 return list.AsQueryable();
             }
 
+            //TODO: return the same dbset perhaps?
             return new DbSet<TElement>(this, expression);
         }
 
@@ -54,6 +53,11 @@ namespace Neurotoxin.Soulshot.Query
 
         public TResult Execute<TResult>(Expression expression)
         {
+            if (expression is UpdateExpression)
+            {
+                
+            }
+
             var type = typeof(TResult);
             //var mapper = DataEngine.ColumnMapper.TryGetMapper(type);
             //if (mapper != null)
@@ -62,24 +66,39 @@ namespace Neurotoxin.Soulshot.Query
             //    var scalar = DataEngine.ExecuteScalar(sqlExpression, type);
             //    return (TResult)scalar;
             //}
+
+            var methodCallExpression = expression as MethodCallExpression;
+            if (methodCallExpression == null) throw new InvalidOperationException();
+            var methodName = methodCallExpression.Method.Name;
             
             var elementType = TypeSystem.GetElementType(expression.Type);
-            var list = Select(expression);
-            if (typeof (TResult) == elementType)
+            if (methodName == "Any") elementType = typeof (int);
+            var list = Select(expression, elementType);
+            if (type == elementType)
             {
                 var enumerator = list.GetEnumerator();
-                var methodCallExpression = expression as MethodCallExpression;
-                if (methodCallExpression == null) throw new InvalidOperationException();
-                switch (methodCallExpression.Method.Name)
+                TResult result;
+                switch (methodName)
                 {
                     case "FirstOrDefault":
-                        return First<TResult>(enumerator, true);
+                        result = First<TResult>(enumerator, true);
+                        DbSet.CacheEntity(result);
+                        return result;
                     case "First":
-                        return First<TResult>(enumerator, false);
+                        result = First<TResult>(enumerator, false);
+                        DbSet.CacheEntity(result);
+                        return result;
                     case "SingleOrDefault":
-                        return Single<TResult>(enumerator, true);
+                        result = Single<TResult>(enumerator, true);
+                        DbSet.CacheEntity(result);
+                        return result;
                     case "Single":
-                        return Single<TResult>(enumerator, false);
+                        result = Single<TResult>(enumerator, false);
+                        DbSet.CacheEntity(result);
+                        return result;
+                    case "Max":
+                        enumerator.MoveNext();
+                        return (TResult)enumerator.Current;
                     case "Count":
                         enumerator.MoveNext();
                         return (TResult)enumerator.Current;
@@ -87,25 +106,48 @@ namespace Neurotoxin.Soulshot.Query
                         throw new NotSupportedException(methodCallExpression.Method.Name);
                 }
             }
+            if (type.IsValueType)
+            {
+                var enumerator = list.GetEnumerator();
+                switch (methodName)
+                {
+                    case "Count":
+                        enumerator.MoveNext();
+                        return (TResult)enumerator.Current;
+                    case "Any":
+                        enumerator.MoveNext();
+                        var value = (object)((int)enumerator.Current != 0);
+                        return (TResult)value;
+                    default:
+                        throw new NotSupportedException(methodCallExpression.Method.Name);
+                }
+            }
+            DbSet.CacheEntities(list);
             return (TResult)list;
         }
 
         public List<T> Select<T>(Expression expression)
         {
-            return (List<T>)Select(expression);
+            return (List<T>)Select(expression, TypeSystem.GetElementType(expression.Type));
         }
 
-        private IEnumerable Select(Expression expression)
+        private IEnumerable Select(Expression expression, Type elementType)
         {
-            var elementType = TypeSystem.GetElementType(expression.Type);
             var sqlExpression = ExecuteImp(expression, typeof(SelectExpression));
-            return DataEngine.ExecuteQuery(elementType, sqlExpression);
+            return DataEngine.ExecuteQueryExpression(elementType, sqlExpression);
         }
 
         public void Delete(Expression expression)
         {
             var sqlExpression = ExecuteImp(expression, typeof(DeleteExpression));
-            DataEngine.ExecuteNonQuery(sqlExpression);
+            DataEngine.ExecuteNonQueryExpression(sqlExpression);
+        }
+
+        public void Update(Expression expression, Expression updateExpression)
+        {
+            var sqlExpression = (UpdateExpression)ExecuteImp(expression, typeof(UpdateExpression));
+            sqlExpression.Set = updateExpression;
+            DataEngine.ExecuteNonQueryExpression(sqlExpression);
         }
 
         private SqlExpression ExecuteImp(Expression expression, Type targetExpression)

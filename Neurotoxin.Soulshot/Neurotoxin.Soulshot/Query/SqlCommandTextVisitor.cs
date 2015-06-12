@@ -76,6 +76,9 @@ namespace Neurotoxin.Soulshot.Query
             var countExpression = node as CountExpression;
             if (countExpression != null) return VisitCount(countExpression);
 
+            var maxExpression = node as MaxExpression;
+            if (maxExpression != null) return VisitMax(maxExpression);
+
             var containsExpression = node as ContainsExpression;
             if (containsExpression != null) return VisitContains(containsExpression);
 
@@ -93,6 +96,15 @@ namespace Neurotoxin.Soulshot.Query
 
             var objectNameExpression = node as ObjectNameExpression;
             if (objectNameExpression != null) return VisitObjectName(objectNameExpression);
+
+            var joinExpression = node as JoinExpression;
+            if (joinExpression != null) return VisitJoin(joinExpression);
+
+            var setExpression = node as SetExpression;
+            if (setExpression != null) return VisitSet(setExpression);
+
+            var convertExpression = node as ConvertExpression;
+            if (convertExpression != null) return VisitConvert(convertExpression);
 
             return base.Visit(node);
         }
@@ -204,15 +216,25 @@ namespace Neurotoxin.Soulshot.Query
 
         protected virtual Expression VisitUpdate(UpdateExpression node)
         {
+            _useAliases = false;
             Append("UPDATE");
-            Visit(node.Set);
             //TODO: support from
             Visit(node.Target);
+            Append("SET");
+            Visit(node.Set);
             if (node.Where != null)
             {
                 Append("WHERE");
                 Visit(node.Where);
             }
+            return node;
+        }
+
+        protected virtual Expression VisitSet(SetExpression node)
+        {
+            VisitBinaryBranch(node.Left, node.NodeType);
+            Append(ToSign(node.NodeType));
+            VisitBinaryBranch(node.Right, node.NodeType);
             return node;
         }
 
@@ -293,9 +315,9 @@ namespace Neurotoxin.Soulshot.Query
         protected virtual Expression VisitColumn(ColumnExpression node)
         {
             var doSpace = true;
-            if (_useAliases && !string.IsNullOrEmpty(node.Alias))
+            if (_useAliases && node.Table != null && !string.IsNullOrEmpty(node.Table.Alias))
             {
-                Append(node.Alias);
+                Append(node.Table.Alias);
                 Append(".", false);
                 doSpace = false;
             }
@@ -368,6 +390,14 @@ namespace Neurotoxin.Soulshot.Query
             return node;
         }
 
+        protected virtual Expression VisitMax(MaxExpression node)
+        {
+            Append("MAX(");
+            Visit(node.Column);
+            Append(")");
+            return node;
+        }
+
         protected virtual Expression VisitContains(ContainsExpression node)
         {
             Visit(node.Column);
@@ -418,6 +448,42 @@ namespace Neurotoxin.Soulshot.Query
             Append("[");
             Append(node.Name);
             Append("]", false);
+            return node;
+        }
+
+        protected virtual Expression VisitJoin(JoinExpression node)
+        {
+            switch (node.JoinType)
+            {
+                case JoinType.Inner:
+                    Append("INNER");
+                    break;
+                case JoinType.Left:
+                    Append("LEFT");
+                    break;
+                case JoinType.Right:
+                    Append("RIGHT");
+                    break;
+                case JoinType.Full:
+                    Append("FULL OUTER");
+                    break;
+                default:
+                    throw new NotSupportedException("Invalid join type: " + node.JoinType);
+            }
+            Append("JOIN");
+            Visit(node.Table);
+            Append("ON");
+            Visit(node.Condition);
+            return node;
+        }
+
+        protected virtual Expression VisitConvert(ConvertExpression node)
+        {
+            Append("CONVERT(");
+            Append(node.ToType.ToString());
+            Append(",");
+            Visit(node.Column);
+            Append(")", false);
             return node;
         }
 
@@ -476,6 +542,10 @@ namespace Neurotoxin.Soulshot.Query
                     return "<";
                 case ExpressionType.LessThanOrEqual:
                     return "<=";
+                case ExpressionType.Assign:
+                    return "=";
+                case ExpressionType.Default:
+                    return string.Empty;
                 default:
                     throw new NotImplementedException(type.ToString());
             }

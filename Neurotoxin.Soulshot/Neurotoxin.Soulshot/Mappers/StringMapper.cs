@@ -11,7 +11,8 @@ namespace Neurotoxin.Soulshot.Mappers
 
         public override string MapToSql(object value)
         {
-            return string.Format("N'{0}'", value);
+            var s = (string)value;
+            return string.Format("N'{0}'", s.Replace("'", "''"));
         }
     }
 }

@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Neurotoxin.Soulshot.Annotations;
 
 namespace Neurotoxin.Soulshot.Extensions
@@ -27,7 +23,10 @@ namespace Neurotoxin.Soulshot.Extensions
 
         public static TableAttribute GetTableAttribute(this Type type)
         {
-            return type.GetAttribute<TableAttribute>() ?? new TableAttribute(type.Name);
+            var attribute = type.GetAttribute<TableAttribute>();
+            if (attribute != null) return attribute;
+            var r = new Regex("Entity$");
+            return new TableAttribute(r.Replace(type.Name, string.Empty));
         }
     }
 }

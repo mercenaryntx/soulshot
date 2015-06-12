@@ -103,8 +103,14 @@ namespace Neurotoxin.Soulshot
                     }
                 }
 
-                var isNullable = IsNullable(pi.PropertyType);
-                object defaultValue = isNullable ? null : Activator.CreateInstance(pi.PropertyType);
+                var isNullable = IsNullable(pi);
+                object defaultValue = null;
+                try
+                {
+                    defaultValue = isNullable ? null : Activator.CreateInstance(pi.PropertyType);
+                }
+                catch { }
+
                 var indexAttribute = pi.GetAttribute<IndexAttribute>();
 
                 columns.Add(columnName, new ColumnInfo
@@ -222,8 +228,11 @@ namespace Neurotoxin.Soulshot
             return args.All(t => t.IsEnum) && typeof(Nullable<>).MakeGenericType(args) == type;
         }
 
-        private bool IsNullable(Type type)
+        private bool IsNullable(PropertyInfo pi)
         {
+            if (pi.HasAttribute<KeyAttribute>() || pi.HasAttribute<IndexAttribute>()) return false;
+
+            var type = pi.PropertyType;
             if (type.IsClass) return true;
             if (!type.IsGenericType) return false;
             var args = type.GenericTypeArguments;

@@ -105,7 +105,27 @@ namespace Neurotoxin.Soulshot
 
         public void SaveChanges()
         {
-            if (_cachedEntities.All(e => ((IEntityProxy)e).State == EntityState.Unchanged)) return;
+            SaveChanges(_cachedEntities);
+            _cachedEntities.Clear();
+        }
+
+        public void CacheEntity(object entity)
+        {
+            if (entity == null) return;
+            Add((TEntity) entity, EntityState.Unchanged);
+        }
+
+        public void CacheEntities(IEnumerable entities)
+        {
+            foreach (var entity in entities.Cast<TEntity>())
+            {
+                Add(entity, EntityState.Unchanged);
+            }
+        }
+
+        public void SaveChanges(IEnumerable<TEntity> entities)
+        {
+            if (entities.All(e => ((IEntityProxy)e).State == EntityState.Unchanged)) return;
             if (_relatedDbSets != null)
             {
                 foreach (var dbSet in _relatedDbSets)
@@ -114,8 +134,12 @@ namespace Neurotoxin.Soulshot
                 }
             }
 
-            _dataEngine.CommitChanges(_cachedEntities, Table, Columns);
-            _cachedEntities.Clear();
+            _dataEngine.CommitChanges(entities, Table, Columns);
+        }
+
+        public void BulkInsert(IEnumerable<TEntity> entities)
+        {
+            _dataEngine.BulkInsert(entities, Table, Columns);
         }
 
         //public TEntity SingleById(object id)
@@ -138,12 +162,7 @@ namespace Neurotoxin.Soulshot
 
         public IEnumerator<TEntity> GetEnumerator()
         {
-            var resultSet = Provider.Select<TEntity>(Expression);
-            foreach (var entity in resultSet)
-            {
-                Add(entity, EntityState.Unchanged);
-            }
-            return resultSet.GetEnumerator();
+            return Provider.Select<TEntity>(Expression).GetEnumerator();
         }
 
         IEnumerator IEnumerable.GetEnumerator()

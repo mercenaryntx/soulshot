@@ -8,7 +8,7 @@ namespace Neurotoxin.Soulshot.Tests.Models
 {
     public class ClassB : EntityBase
     {
-        public int NumberOfSomething { get; set; }
-        public string Text { get; set; }
+        public virtual int NumberOfSomething { get; set; }
+        public virtual string Text { get; set; }
     }
 }

@@ -140,11 +140,12 @@ namespace Neurotoxin.Soulshot
             ExecuteNonQuery(insert);
         }
 
-        protected virtual void Insert(IEntityProxy entity, TableAttribute table, ColumnInfoCollection columns)
+        protected InsertExpression CreateInsertExpression(object entity, TableAttribute table, ColumnInfoCollection columns)
         {
             var values = new ValuesExpression();
             var insert = new InsertExpression(new TableExpression(table)) { Values = values };
-            var type = entity.GetType().BaseType;
+            var type = entity.GetType();
+            if (type.Module.ScopeName == "FooBar") type = type.BaseType;
             var discriminator = columns.SingleOrDefault(c => c.IsDiscriminatorColumn);
             if (discriminator != null)
             {
@@ -182,7 +183,12 @@ namespace Neurotoxin.Soulshot
                     Debugger.Break();
                 }
             }
+            return insert;
+        }
 
+        protected virtual void Insert(IEntityProxy entity, TableAttribute table, ColumnInfoCollection columns)
+        {
+            var insert = CreateInsertExpression(entity, table, columns);
             ExecuteNonQuery(insert);
         }
 
@@ -197,9 +203,10 @@ namespace Neurotoxin.Soulshot
             var type = entity.GetType();
             foreach (var property in entity.DirtyProperties)
             {
-                var pi = type.GetProperty(property);
+                var pi = type.GetProperty(property, BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
                 var column = columns.First(c => c.DescribesProperty(pi));
-                update.AddSet(new SetExpression(column.ToColumnExpression(), Expression.Constant(pi.GetValue(entity))));
+                //update.AddSet(new SetExpression(column.ToColumnExpression(), Expression.Constant(pi.GetValue(entity))));
+                update.AddSet(column.ToEqualExpression(entity));
             }
             ExecuteNonQuery(update);
         }
@@ -218,6 +225,10 @@ namespace Neurotoxin.Soulshot
         {
             return (IEnumerable<TEntity>)ExecuteQuery(typeof(TEntity), expression);
         }
+
+        public abstract void ExecuteNonQueryExpression(Expression expression);
+        public abstract IEnumerable ExecuteQueryExpression(Type elementType, Expression expression);
+        public abstract object ExecuteScalarExpression(Expression expression, Type type);
 
         protected object MapType(Type type, Dictionary<string, object> values, ColumnInfoCollection columns)
         {
@@ -249,6 +260,7 @@ namespace Neurotoxin.Soulshot
 
                 columns.SetValue(instance, name, value, ColumnMapper);
             }
+            instance.ClearDirty();
             return instance;
         }
 
@@ -258,10 +270,11 @@ namespace Neurotoxin.Soulshot
         public abstract void RenameTable(TableAttribute oldName, TableAttribute newName);
         public abstract void DeleteTable(TableAttribute table);
         public abstract void CommitChanges(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns);
+        public abstract void BulkInsert(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns);
         public abstract string GetLiteral(object value);
-        public abstract void ExecuteNonQuery(Expression expression);
-        public abstract IEnumerable ExecuteQuery(Type elementType, Expression expression);
-        public abstract object ExecuteScalar(Expression expression, Type type);
+        protected abstract void ExecuteNonQuery(Expression expression);
+        protected abstract IEnumerable ExecuteQuery(Type elementType, Expression expression);
+        protected abstract object ExecuteScalar(Expression expression, Type type);
         public abstract void Dispose();
     }
 }

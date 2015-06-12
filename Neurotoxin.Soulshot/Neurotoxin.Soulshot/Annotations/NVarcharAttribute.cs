@@ -6,7 +6,7 @@
         {
         }
 
-        public NVarcharAttribute(int? length) : base(length)
+        public NVarcharAttribute(int length) : base(length)
         {
         }
 

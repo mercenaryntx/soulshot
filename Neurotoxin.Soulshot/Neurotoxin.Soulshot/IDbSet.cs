@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using Neurotoxin.Soulshot.Annotations;
 
 namespace Neurotoxin.Soulshot
@@ -13,5 +14,8 @@ namespace Neurotoxin.Soulshot
 
         void Init();
         void SaveChanges();
+
+        void CacheEntity(object entity);
+        void CacheEntities(IEnumerable entities);
     }
 }

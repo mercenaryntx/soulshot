@@ -11,7 +11,7 @@ namespace Neurotoxin.Soulshot.Mappers
 
         public override string MapToSql(object value)
         {
-            return string.Format("'{0}'", value);
+            return string.Format("'{0:yyyy-MM-dd HH:mm:ss}'", value);
         }
     }
 }

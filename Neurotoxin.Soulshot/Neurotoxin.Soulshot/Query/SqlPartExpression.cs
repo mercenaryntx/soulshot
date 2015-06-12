@@ -6,7 +6,7 @@ namespace Neurotoxin.Soulshot.Query
     {
         public string Value { get; set; }
 
-        public SqlPartExpression(string value)
+        public SqlPartExpression(string value) : base(ExpressionType.Default, typeof(string))
         {
             Value = value;
         }

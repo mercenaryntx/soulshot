@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using Neurotoxin.Soulshot.Annotations;
 
 namespace Neurotoxin.Soulshot.Mappers

@@ -31,6 +31,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -87,7 +88,9 @@
     <Compile Include="DynamicProxy.cs" />
     <Compile Include="EntityKey.cs" />
     <Compile Include="EntityState.cs" />
+    <Compile Include="Extensions\EntityProxyExtensions.cs" />
     <Compile Include="Extensions\ILGeneratorExtensions.cs" />
+    <Compile Include="Extensions\QueryableExtensions.cs" />
     <Compile Include="Extensions\TypeBuilderExtensions.cs" />
     <Compile Include="IEntityProxy.cs" />
     <Compile Include="ILazyProxy.cs" />
@@ -98,6 +101,7 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Mappers\GuidMapper.cs" />
+    <Compile Include="Mappers\NullableInt32Mapper.cs" />
     <Compile Include="Mappers\TimeSpanMapper.cs" />
     <Compile Include="Mappers\DateTimeOffsetMapper.cs" />
     <Compile Include="Mappers\DateTimeMapper.cs" />
@@ -123,12 +127,15 @@
     <Compile Include="PropertyCollection.cs" />
     <Compile Include="Query\AlterTableExpression.cs" />
     <Compile Include="Query\AsteriskExpression.cs" />
+    <Compile Include="Query\ConvertExpression.cs" />
     <Compile Include="Query\ColumnOrderExpression.cs" />
     <Compile Include="Query\ColumnDefinitionExpression.cs" />
     <Compile Include="Query\ConstraintExpression.cs" />
     <Compile Include="Query\ConstraintType.cs" />
     <Compile Include="Query\CreateIndexExpression.cs" />
     <Compile Include="Query\IndexType.cs" />
+    <Compile Include="Query\JoinExpression.cs" />
+    <Compile Include="Query\JoinType.cs" />
     <Compile Include="Query\LikeExpression.cs" />
     <Compile Include="Query\ContainsExpression.cs" />
     <Compile Include="Query\CountExpression.cs" />
@@ -143,6 +150,7 @@
     <Compile Include="Query\IHasWhereExpressionExtensions.cs" />
     <Compile Include="Query\InsertExpression.cs" />
     <Compile Include="Query\ListingExpression.cs" />
+    <Compile Include="Query\MaxExpression.cs" />
     <Compile Include="Query\ObjectNameExpression.cs" />
     <Compile Include="Query\OrderByExpression.cs" />
     <Compile Include="Query\SelectExpression.cs" />
@@ -163,6 +171,10 @@
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>
+    </PostBuildEvent>
+  </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

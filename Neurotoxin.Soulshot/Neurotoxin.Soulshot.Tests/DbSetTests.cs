@@ -48,17 +48,23 @@ namespace Neurotoxin.Soulshot.Tests
             Assert.IsTrue(name.DeclaringTypes.SequenceEqual(seqEntityBase));
             Assert.AreEqual(name.PropertyName, "Name");
 
+            var date = columns[4];
+            Assert.AreEqual(date.ColumnName, "Date");
+            Assert.AreEqual(date.ColumnType, "datetime2");
+            Assert.IsTrue(date.DeclaringTypes.SequenceEqual(seqEntityBase));
+            Assert.AreEqual(date.PropertyName, "Date");
+
             /* Class A */
             var seqClassA = new List<Type> { typeof(ClassA) };
             var seqClassAB = new List<Type> { typeof(ClassA), typeof(ClassB) };
 
-            var number1 = columns[4];
+            var number1 = columns[5];
             Assert.AreEqual(number1.ColumnName, "NumberOfSomething");
             Assert.AreEqual(number1.ColumnType, "int");
             Assert.IsTrue(number1.DeclaringTypes.SequenceEqual(seqClassAB));
             Assert.AreEqual(number1.PropertyName, "NumberOfSomething");
 
-            var createdOn = columns[5];
+            var createdOn = columns[6];
             Assert.AreEqual(createdOn.ColumnName, "CreatedOn");
             Assert.AreEqual(createdOn.ColumnType, "datetime2");
             Assert.IsTrue(createdOn.DeclaringTypes.SequenceEqual(seqClassA));
@@ -67,7 +73,7 @@ namespace Neurotoxin.Soulshot.Tests
             /* Class B */
             var seqClassBC = new List<Type> { typeof(ClassB), typeof(ClassC) };
 
-            var text = columns[6];
+            var text = columns[7];
             Assert.AreEqual(text.ColumnName, "Text");
             Assert.AreEqual(text.ColumnType, "nvarchar(max)");
             Assert.IsTrue(text.DeclaringTypes.SequenceEqual(seqClassBC));
@@ -76,7 +82,7 @@ namespace Neurotoxin.Soulshot.Tests
             /* Class D */
             var seqClassD = new List<Type> { typeof(ClassD) };
 
-            var number2 = columns[7];
+            var number2 = columns[8];
             Assert.AreEqual(number2.ColumnName, "ClassDNumberOfSomething");
             Assert.AreEqual(number2.ColumnType, "bigint");
             Assert.IsTrue(number2.DeclaringTypes.SequenceEqual(seqClassD));
@@ -85,13 +91,13 @@ namespace Neurotoxin.Soulshot.Tests
             /* Class E */
             var seqClassE = new List<Type> { typeof(ClassE) };
 
-            var lorem = columns[8];
+            var lorem = columns[9];
             Assert.AreEqual(lorem.ColumnName, "Lorem");
             Assert.AreEqual(lorem.ColumnType, "nvarchar(max)");
             Assert.IsTrue(lorem.DeclaringTypes.SequenceEqual(seqClassE));
             Assert.AreEqual(lorem.PropertyName, "Lorem");
 
-            Assert.AreEqual(columns.Count, 9);
+            Assert.AreEqual(columns.Count, 10);
         }
 
         [TestMethod]
@@ -248,6 +254,23 @@ namespace Neurotoxin.Soulshot.Tests
         }
 
         [TestMethod]
+        public void SelectGreaterThanVariable()
+        {
+            X(15000);
+        }
+
+        private void X(int x)
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var c = context.TestTable.Where(e => e.Id > x).ToList();
+                Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
         public void SelectContains()
         {
             using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
@@ -381,6 +404,21 @@ namespace Neurotoxin.Soulshot.Tests
         }
 
         [TestMethod]
+        public void SelectByJoinedTableValue()
+        {
+            var sw = new Stopwatch();
+            sw.Start();
+            using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                Console.WriteLine("Init: " + sw.Elapsed);
+                sw.Restart();
+
+                var stored = context.Address.Where(a => a.CurrentCity.Country.Name == "Hungary" || a.Hometown.Country.Name == "Hungary").Select(a => a.Street).First();
+                Console.WriteLine("Select: " + sw.Elapsed);
+            }
+        }
+
+        [TestMethod]
         public void OneToMany()
         {
             var sw = new Stopwatch();
@@ -392,6 +430,34 @@ namespace Neurotoxin.Soulshot.Tests
                 var country = context.Countries.First(c => c.Name == "Hungary");
                 Console.WriteLine("Select: " + sw.Elapsed);
             }
+        }
+
+        [TestMethod]
+        [Microsoft.VisualStudio.TestTools.UnitTesting.Ignore]
+        public void Update()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                //context.TestTable.Where(e => e.Id == 1).Update();
+                //Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+            }
+
+        }
+
+        [TestMethod]
+        public void GetTimePart()
+        {
+            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                var ts = new TimeSpan(10, 0, 0);
+                var c = context.TestTable.Count(e => e.Date.TimeOfDay > ts);
+                Console.WriteLine("Count {0}: {1}", c, sw.Elapsed);
+            }
+
         }
 
     }

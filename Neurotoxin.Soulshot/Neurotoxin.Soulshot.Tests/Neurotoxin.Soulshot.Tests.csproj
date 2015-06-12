@@ -51,11 +51,14 @@
   </Choose>
   <ItemGroup>
     <Compile Include="DbSetTests.cs" />
+    <Compile Include="Models\Address.cs" />
+    <Compile Include="Models\City.cs" />
     <Compile Include="Models\ClassA.cs" />
     <Compile Include="Models\ClassB.cs" />
     <Compile Include="Models\ClassC.cs" />
     <Compile Include="Models\ClassD.cs" />
     <Compile Include="Models\ClassE.cs" />
+    <Compile Include="Models\Country.cs" />
     <Compile Include="Models\EntityBase.cs" />
     <Compile Include="Models\Person.cs" />
     <Compile Include="Models\TestContext.cs" />

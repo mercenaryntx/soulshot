@@ -14,11 +14,13 @@ namespace Neurotoxin.Soulshot
         bool TableExists(TableAttribute table);
         ColumnInfoCollection UpdateTable<TEntity>(TableAttribute table, ColumnInfoCollection actualColumns, ColumnInfoCollection storedColumns);
         void RenameTable(TableAttribute oldName, TableAttribute newName);
-        void ExecuteNonQuery(Expression expression);
-        IEnumerable ExecuteQuery(Type elementType, Expression expression);
         IEnumerable<TEntity> Execute<TEntity>(Expression expression);
         void CommitChanges(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns);
+        void BulkInsert(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns);
         string GetLiteral(object value);
-        object ExecuteScalar(Expression expression, Type type);
+
+        void ExecuteNonQueryExpression(Expression expression);
+        IEnumerable ExecuteQueryExpression(Type elementType, Expression expression);
+        object ExecuteScalarExpression(Expression expression, Type type);
     }
 }

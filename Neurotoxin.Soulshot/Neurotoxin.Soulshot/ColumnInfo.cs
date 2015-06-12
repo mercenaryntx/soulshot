@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
 using Neurotoxin.Soulshot.Annotations;
@@ -10,14 +11,14 @@ namespace Neurotoxin.Soulshot
     [Table("__MigrationHistory")]
     public class ColumnInfo
     {
-        public string TableName { get; set; }
-        public string TableSchema { get; set; }
-        public string ColumnName { get; set; }
-        public string ColumnType { get; set; }
-        public string PropertyName { get; set; }
-        public bool IsNullable { get; set; }
-        public bool IsIdentity { get; set; }
-        public IndexType? IndexType { get; set; }
+        public virtual string TableName { get; set; }
+        public virtual string TableSchema { get; set; }
+        public virtual string ColumnName { get; set; }
+        public virtual string ColumnType { get; set; }
+        public virtual string PropertyName { get; set; }
+        public virtual bool IsNullable { get; set; }
+        public virtual bool IsIdentity { get; set; }
+        public virtual IndexType? IndexType { get; set; }
 
         [Ignore] public object DefaultValue { get; set; }
         [Ignore] public bool IsDiscriminatorColumn { get; set; }
@@ -60,17 +61,18 @@ namespace Neurotoxin.Soulshot
             }
         }
 
-        public ColumnExpression ToColumnExpression(string alias = null, Type type = null)
+        public ColumnExpression ToColumnExpression(TableExpression table = null, Type type = null)
         {
             if (type == null)
                 type = PropertyName == null ? typeof (Type) : DeclaringTypes[0].GetProperty(PropertyName).PropertyType;
-            return new ColumnExpression(ColumnName, alias, type);
+            return new ColumnExpression(ColumnName, table, type);
         }
 
-        public BinaryExpression ToEqualExpression(object obj, string alias = null)
+        public BinaryExpression ToEqualExpression(object obj, TableExpression table = null)
         {
             var value = GetValue(obj);
-            return Expression.MakeBinary(ExpressionType.Equal, ToColumnExpression(alias), Expression.Constant(value));
+            var column = ToColumnExpression(table);
+            return Expression.MakeBinary(ExpressionType.Equal, column, Expression.Constant(value, column.Type));
         }
 
         public object GetValue(object obj)
@@ -80,7 +82,12 @@ namespace Neurotoxin.Soulshot
 
         public void SetValue(object obj, object value)
         {
-            GetProperty(obj).SetValue(obj, value);
+            var property = GetProperty(obj);
+            if (property == null)
+            {
+                Debugger.Break();
+            }
+            property.SetValue(obj, value);
         }
 
         private PropertyInfo GetProperty(object obj)

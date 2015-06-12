@@ -7,11 +7,13 @@ namespace Neurotoxin.Soulshot.Tests.Models
     public class EntityBase
     {
         [Key]
-        public int Id { get; set; }
+        public virtual int Id { get; set; }
 
         [Index(IndexType.Unique)]
-        public Guid EntityId { get; set; }
+        public virtual Guid EntityId { get; set; }
 
-        public string Name { get; set; }
+        public virtual string Name { get; set; }
+
+        public virtual DateTime Date { get; set; }
     }
 }

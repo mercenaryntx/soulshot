@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Neurotoxin.Soulshot.Annotations
+﻿namespace Neurotoxin.Soulshot.Annotations
 {
     public class BinaryAttribute : ColumnTypeAttribute
     {

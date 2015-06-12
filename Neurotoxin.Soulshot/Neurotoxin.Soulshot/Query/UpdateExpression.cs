@@ -13,7 +13,7 @@ namespace Neurotoxin.Soulshot.Query
             Target = target;
         }
 
-        public void AddSet(SetExpression set)
+        public void AddSet(Expression set)
         {
             Set = Set == null ? (Expression)set : new ListingExpression(Set, set);
         }

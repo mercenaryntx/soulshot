@@ -1,0 +1,177 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{625FDAC9-D2EB-470D-98D0-FF497E797A62}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Neurotoxin.Soulshot</RootNamespace>
+    <AssemblyName>Neurotoxin.Soulshot</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Annotations\BigIntAttribute.cs" />
+    <Compile Include="Annotations\BinaryAttribute.cs" />
+    <Compile Include="Annotations\BinaryVaryingAttribute.cs" />
+    <Compile Include="Annotations\DateAttribute.cs" />
+    <Compile Include="Annotations\DateTime2Attribute.cs" />
+    <Compile Include="Annotations\DateTimeAttribute.cs" />
+    <Compile Include="Annotations\DateTimeOffsetAttribute.cs" />
+    <Compile Include="Annotations\FloatAttribute.cs" />
+    <Compile Include="Annotations\ForeignKeyAttribute.cs" />
+    <Compile Include="Annotations\IgnoreAttribute.cs" />
+    <Compile Include="Annotations\IndexAttribute.cs" />
+    <Compile Include="Annotations\KeyAttribute.cs" />
+    <Compile Include="Annotations\RealAttribute.cs" />
+    <Compile Include="Annotations\BitAttribute.cs" />
+    <Compile Include="Annotations\BooleanAttribute.cs" />
+    <Compile Include="Annotations\DecimalAttribute.cs" />
+    <Compile Include="Annotations\IntegerAttribute.cs" />
+    <Compile Include="Annotations\MoneyAttribute.cs" />
+    <Compile Include="Annotations\NumericAttribute.cs" />
+    <Compile Include="Annotations\SmallDateTimeAttribute.cs" />
+    <Compile Include="Annotations\SmallIntAttribute.cs" />
+    <Compile Include="Annotations\SmallMoneyAttribute.cs" />
+    <Compile Include="Annotations\StringValue.cs" />
+    <Compile Include="Annotations\TableAttribute.cs" />
+    <Compile Include="Annotations\TimeAttribute.cs" />
+    <Compile Include="Annotations\UnicodeCharacterVaryingAttribute.cs" />
+    <Compile Include="Annotations\CharAttribute.cs" />
+    <Compile Include="Annotations\NCharAttribute.cs" />
+    <Compile Include="Annotations\NVarcharAttribute.cs" />
+    <Compile Include="Annotations\UniqueIdentifierAttribute.cs" />
+    <Compile Include="Annotations\VarbinaryAttribute.cs" />
+    <Compile Include="Annotations\VarcharAttribute.cs" />
+    <Compile Include="Annotations\CharacterVaryingAttribute.cs" />
+    <Compile Include="Annotations\UnicodeCharacterAttribute.cs" />
+    <Compile Include="Annotations\CharacterAttribute.cs" />
+    <Compile Include="Annotations\ColumnTypeAttribute.cs" />
+    <Compile Include="ColumnInfoCollection.cs" />
+    <Compile Include="ColumnMapper.cs" />
+    <Compile Include="ConstraintInfo.cs" />
+    <Compile Include="CrossReference.cs" />
+    <Compile Include="DataEngineBase.cs" />
+    <Compile Include="DbContext.cs" />
+    <Compile Include="DbSet.cs" />
+    <Compile Include="ColumnInfo.cs" />
+    <Compile Include="DbSetMode.cs" />
+    <Compile Include="DynamicProxy.cs" />
+    <Compile Include="EntityKey.cs" />
+    <Compile Include="EntityState.cs" />
+    <Compile Include="Extensions\QueryableExtensions.cs" />
+    <Compile Include="Extensions\ILGeneratorExtensions.cs" />
+    <Compile Include="Extensions\TypeBuilderExtensions.cs" />
+    <Compile Include="IEntityProxy.cs" />
+    <Compile Include="ILazyProxy.cs" />
+    <Compile Include="Mappers\BooleanMapper.cs" />
+    <Compile Include="Mappers\ByteArrayMapper.cs" />
+    <Compile Include="Mappers\EnumMapper.cs" />
+    <Compile Include="Mappers\ForeignKeyMapper.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Mappers\GuidMapper.cs" />
+    <Compile Include="Mappers\TimeSpanMapper.cs" />
+    <Compile Include="Mappers\DateTimeOffsetMapper.cs" />
+    <Compile Include="Mappers\DateTimeMapper.cs" />
+    <Compile Include="Mappers\CharMapper.cs" />
+    <Compile Include="Mappers\StringMapper.cs" />
+    <Compile Include="Mappers\DoubleMapper.cs" />
+    <Compile Include="Mappers\SingleMapper.cs" />
+    <Compile Include="Mappers\Int16Mapper.cs" />
+    <Compile Include="Mappers\Int32Mapper.cs" />
+    <Compile Include="Mappers\Int64Mapper.cs" />
+    <Compile Include="Mappers\MapperBase.cs" />
+    <Compile Include="Mappers\TypeMapper.cs" />
+    <Compile Include="Mappers\UInt16Mapper.cs" />
+    <Compile Include="Mappers\DecimalMapper.cs" />
+    <Compile Include="Mappers\UInt64Mapper.cs" />
+    <Compile Include="Mappers\UInt32Mapper.cs" />
+    <Compile Include="MssqlDataEngine.cs" />
+    <Compile Include="Extensions\MemberInfoExtensions.cs" />
+    <Compile Include="Extensions\TypeExtensions.cs" />
+    <Compile Include="IDataEngine.cs" />
+    <Compile Include="IDbSet.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="PropertyCollection.cs" />
+    <Compile Include="Query\AlterTableExpression.cs" />
+    <Compile Include="Query\AsteriskExpression.cs" />
+    <Compile Include="Query\ColumnOrderExpression.cs" />
+    <Compile Include="Query\ColumnDefinitionExpression.cs" />
+    <Compile Include="Query\ConstraintExpression.cs" />
+    <Compile Include="Query\ConstraintType.cs" />
+    <Compile Include="Query\ConvertExpression.cs" />
+    <Compile Include="Query\CreateIndexExpression.cs" />
+    <Compile Include="Query\IndexType.cs" />
+    <Compile Include="Query\JoinExpression.cs" />
+    <Compile Include="Query\JoinType.cs" />
+    <Compile Include="Query\LikeExpression.cs" />
+    <Compile Include="Query\ContainsExpression.cs" />
+    <Compile Include="Query\CountExpression.cs" />
+    <Compile Include="Query\DropTableExpression.cs" />
+    <Compile Include="Query\CreateTableExpression.cs" />
+    <Compile Include="Query\DeleteExpression.cs" />
+    <Compile Include="Query\IHasColumnsExpression.cs" />
+    <Compile Include="Query\IHasColumnsExpressionExtensions.cs" />
+    <Compile Include="Query\IHasFromExpression.cs" />
+    <Compile Include="Query\IHasFromExpressionExtensions.cs" />
+    <Compile Include="Query\IHasWhereExpression.cs" />
+    <Compile Include="Query\IHasWhereExpressionExtensions.cs" />
+    <Compile Include="Query\InsertExpression.cs" />
+    <Compile Include="Query\ListingExpression.cs" />
+    <Compile Include="Query\ObjectNameExpression.cs" />
+    <Compile Include="Query\OrderByExpression.cs" />
+    <Compile Include="Query\SelectExpression.cs" />
+    <Compile Include="Query\SetExpression.cs" />
+    <Compile Include="Query\SqlCommandTextVisitor.cs" />
+    <Compile Include="Query\SqlExpression.cs" />
+    <Compile Include="Query\SqlPartExpression.cs" />
+    <Compile Include="Query\TableExpression.cs" />
+    <Compile Include="Query\ColumnExpression.cs" />
+    <Compile Include="Query\OperatorType.cs" />
+    <Compile Include="Query\SqlQueryProvider.cs" />
+    <Compile Include="Query\UpdateExpression.cs" />
+    <Compile Include="Query\ValuesExpression.cs" />
+    <Compile Include="Query\WhereExpression.cs" />
+    <Compile Include="TypePropertyPair.cs" />
+    <Compile Include="TypeSystem.cs" />
+    <Compile Include="Query\LinqToSqlVisitor.cs" />
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

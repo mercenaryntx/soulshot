@@ -15,7 +15,7 @@ namespace Neurotoxin.Soulshot
         private HashSet<IDbSet> _relatedDbSets;
 
         public TableAttribute Table { get; private set; }
-        public ColumnInfoCollection Columns { get; private set; }
+        public IColumnInfoCollection Columns { get; private set; }
         public SqlQueryProvider Provider { get; private set; }
 
         private DbContext _context;
@@ -39,7 +39,7 @@ namespace Neurotoxin.Soulshot
             get { return Columns.SingleOrDefault(c => c.IsIdentity); }
         }
 
-        internal DbSet(TableAttribute table, ColumnInfoCollection columns, DbContext context)
+        internal DbSet(TableAttribute table, IColumnInfoCollection columns, DbContext context)
         {
             Table = table;
             Columns = columns;
@@ -61,10 +61,9 @@ namespace Neurotoxin.Soulshot
 
         public void Init()
         {
-            var actualColumns = _dataEngine.ColumnMapper.Map<TEntity>(Table);
-
-            _relatedDbSets = new HashSet<IDbSet>(actualColumns.Where(c => c.ReferenceTable != null).Select(c => _context.GetDbSet(c.ReferenceTable.BaseType)));
-            Columns = _dataEngine.UpdateTable<TEntity>(Table, actualColumns, Columns);
+            //var actualColumns = _dataEngine.ColumnMapper.Map<TEntity>(Table);
+            //_relatedDbSets = new HashSet<IDbSet>(actualColumns.Where(c => c.ReferenceTable != null).Select(c => _context.GetDbSet(c.ReferenceTable.BaseType)));
+            //Columns = _dataEngine.UpdateTable<TEntity>(Table, actualColumns, Columns);
             Provider = new SqlQueryProvider(_dataEngine, this);
             Expression = Expression.Constant(this);
         }
@@ -98,9 +97,30 @@ namespace Neurotoxin.Soulshot
             return entity;
         }
 
-        public void Remove(Expression<Func<TEntity, bool>> expression)
+        public TEntity AddOrUpdate(Func<TEntity, bool> keySelector, TEntity entity)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Delete(Expression<Func<TEntity, bool>> expression)
         {
             Provider.Delete(expression);
+        }
+
+        public void Remove(TEntity entity)
+        {
+            var proxy = entity as IEntityProxy;
+            if (proxy == null) throw new ArgumentException("Invalid entity.");
+
+            proxy.State = EntityState.Deleted;
+        }
+
+        public void RemoveRange(IEnumerable<TEntity> entities)
+        {
+            foreach (var entity in entities.Cast<IEntityProxy>())
+            {
+                entity.State = EntityState.Deleted;
+            }
         }
 
         public void SaveChanges()
@@ -123,6 +143,13 @@ namespace Neurotoxin.Soulshot
             }
         }
 
+        public IEnumerable GetDiscriminatorValues(Type type)
+        {
+            return Columns.MappedTypes.All(type.IsAssignableFrom)
+                ? null
+                : Columns.MappedTypes.Where(type.IsAssignableFrom);
+        }
+
         public void SaveChanges(IEnumerable<TEntity> entities)
         {
             if (entities.All(e => ((IEntityProxy)e).State == EntityState.Unchanged)) return;
@@ -140,6 +167,11 @@ namespace Neurotoxin.Soulshot
         public void BulkInsert(IEnumerable<TEntity> entities)
         {
             _dataEngine.BulkInsert(entities, Table, Columns);
+        }
+
+        public void UpdateTable(IEnumerable<ColumnInfo> storedColumns)
+        {
+            _dataEngine.UpdateTable<TEntity>(Table, Columns, storedColumns);
         }
 
         //public TEntity SingleById(object id)

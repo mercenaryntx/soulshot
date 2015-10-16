@@ -293,23 +293,13 @@ namespace Neurotoxin.Soulshot.Query
 
         protected virtual Expression VisitWhere(WhereExpression node)
         {
-            var left = CheckBoolean(node.Left);
-            var right = CheckBoolean(node.Right);
-            Visit(left);
-            if (right != null)
+            Visit(node.Left);
+            if (node.Right != null)
             {
                 Append(ToSign(ExpressionType.And));
-                Visit(right);
+                Visit(node.Right);
             }
             return node;
-        }
-
-        protected virtual Expression CheckBoolean(Expression node)
-        {
-            var columnExpression = node as ColumnExpression;
-            return columnExpression != null
-                ? Expression.MakeBinary(ExpressionType.Equal, columnExpression, Expression.Constant(true))
-                : node;
         }
 
         protected virtual Expression VisitColumn(ColumnExpression node)

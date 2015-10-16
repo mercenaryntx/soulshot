@@ -23,7 +23,7 @@ namespace Neurotoxin.Soulshot
         [Ignore] public object DefaultValue { get; set; }
         [Ignore] public bool IsDiscriminatorColumn { get; set; }
         [Ignore] public List<Type> DeclaringTypes { get; set; }
-        [Ignore] public ColumnInfoCollection ReferenceTable { get; set; }
+        [Ignore] public IColumnInfoCollection ReferenceTable { get; set; }
 
         public override bool Equals(object obj)
         {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using Neurotoxin.Soulshot.Annotations;
 
 namespace Neurotoxin.Soulshot
@@ -8,7 +9,7 @@ namespace Neurotoxin.Soulshot
     {
         DbContext Context { get; }
         TableAttribute Table { get; }
-        ColumnInfoCollection Columns { get; }
+        IColumnInfoCollection Columns { get; }
         ColumnInfo PrimaryKey { get; }
         Type EntityType { get; }
 
@@ -17,5 +18,8 @@ namespace Neurotoxin.Soulshot
 
         void CacheEntity(object entity);
         void CacheEntities(IEnumerable entities);
+        IEnumerable GetDiscriminatorValues(Type type);
+
+        void UpdateTable(IEnumerable<ColumnInfo> storedColumns);
     }
 }

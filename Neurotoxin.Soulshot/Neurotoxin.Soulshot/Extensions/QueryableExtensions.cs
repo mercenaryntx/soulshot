@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
+using System.Threading.Tasks;
 using Neurotoxin.Soulshot.Query;
 
 namespace Neurotoxin.Soulshot.Extensions
@@ -29,54 +32,29 @@ namespace Neurotoxin.Soulshot.Extensions
             Update(source, selector);
         }
 
-        //public static void Update<T>(this IQueryable<T> source, string sqlPart)
-        //{
-        //    if (source == null) throw new ArgumentNullException("source");
-        //    if (string.IsNullOrWhiteSpace(sqlPart)) throw new ArgumentNullException("sqlPart");
+        public static IQueryable<T> OfType<T>(this IQueryable<T> source, Type entityType)
+        {
+            if (source == null) throw new ArgumentNullException("source");
+            var provider = source.Provider;
+            var methodInfo = ((MethodInfo)MethodBase.GetCurrentMethod()).MakeGenericMethod(new [] { typeof(T) });
+            var expressions = new[] { source.Expression, Expression.Constant(entityType) };
+            return provider.CreateQuery<T>(Expression.Call(null, methodInfo, expressions));
+        }
 
-        //    var provider = source.Provider;
-        //    var currentMethod = (MethodInfo)MethodBase.GetCurrentMethod();
-        //    var typeArray = new[] { typeof(T) }; //, typeof(T)
-        //    var methodInfo = currentMethod.MakeGenericMethod(typeArray);
-        //    var expression = new[] { source.Expression, new SqlPartExpression(sqlPart) };
-        //    provider.Execute<T>(Expression.Call(methodInfo, expression));
-        //}
+        public static Task<T> FirstOrDefaultAsync<T>(this IQueryable<T> source, Func<T, bool> selector)
+        {
+            return Task.Run(() => source.FirstOrDefault(selector));
+        }
+
+        public static Task<IQueryable<T>> ReadAsync<T>(this IQueryable<T> source)
+        {
+            //return Task.Run(() => source.)
+            throw new NotImplementedException();
+        }
+
+        public static IQueryable<T> Include<T>(this IQueryable<T> source, string path)
+        {
+            throw new NotImplementedException();
+        }
     }
-
-    //public static class ObjectExtensions
-    //{
-    //    public static void AssignNewValue<T>(this T obj, Expression<Func<T, object>> expression, object value)
-    //    {
-    //        ParameterExpression valueParameterExpression = Expression.Parameter(typeof(object));
-    //        Expression targetExpression = expression.Body is UnaryExpression ? ((UnaryExpression)expression.Body).Operand : expression.Body;
-
-    //        //var newValue = Expression.Parameter(expression.Body.Type);
-    //        var assign = Expression.Lambda<Action<T, object>>
-    //                    (
-    //                        Expression.Assign(targetExpression, Expression.Convert(valueParameterExpression, targetExpression.Type)),
-    //                        expression.Parameters.Single(), valueParameterExpression
-    //                    );
-
-    //        assign.Compile().Invoke(obj, value);
-    //    }
-
-    //    public static void AssignNewValue<T>(this T obj, object values)
-    //    {
-    //        Expression expression = null;
-    //        foreach (var pi in values.GetType().GetProperties())
-    //        {
-    //            var valueParameterExpression = Expression.Parameter(typeof(object));
-    //            var targetExpression = Expression.Property(Expression.Constant(values), pi);
-
-    //            var assign = Expression.Lambda<Action<T, object>>
-    //                        (
-    //                            Expression.Assign(targetExpression, Expression.Convert(valueParameterExpression, targetExpression.Type)),
-    //                            Expression.Parameter(targetExpression.Type, "o"), valueParameterExpression
-    //                        );
-
-    //            assign.Compile().Invoke(obj, pi.GetValue(values));
-    //        }
-    //        return expression;
-    //    }
-    //}
 }

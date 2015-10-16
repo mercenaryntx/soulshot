@@ -16,9 +16,9 @@ namespace Neurotoxin.Soulshot
     {
         public ColumnMapper ColumnMapper { get; set; }
 
-        protected DataEngineBase()
+        protected DataEngineBase(Assembly migrationAssembly)
         {
-            ColumnMapper = new ColumnMapper();
+            ColumnMapper = new ColumnMapper(migrationAssembly);
         }
 
         public bool TableExists<TEntity>()
@@ -88,12 +88,13 @@ namespace Neurotoxin.Soulshot
             return pk.Columns != null ? pk : null;
         }
 
-        public ColumnInfoCollection UpdateTable<TEntity>(TableAttribute table, ColumnInfoCollection actualColumns, ColumnInfoCollection storedColumns)
+        public virtual IColumnInfoCollection UpdateTable<TEntity>(TableAttribute table, IColumnInfoCollection actualColumns, IEnumerable<ColumnInfo> storedColumns)
         {
             if (TableExists(table))
             {
                 if (storedColumns != null && !actualColumns.Equals(storedColumns))
                 {
+                    //TODO: check code first option from config
                     var tmpTable = new TableAttribute(table.Name + "_tmp", table.Schema);
                     CreateTable(tmpTable, actualColumns, false);
                     CopyValues(table, tmpTable, actualColumns.Where(c => storedColumns.Any(cc => cc.ColumnName == c.ColumnName)));
@@ -128,7 +129,7 @@ namespace Neurotoxin.Soulshot
             return actualColumns;
         }
 
-        private void CopyValues(TableAttribute fromTable, TableAttribute toTable, IEnumerable<ColumnInfo> columns)
+        public virtual void CopyValues(TableAttribute fromTable, TableAttribute toTable, IEnumerable<ColumnInfo> columns)
         {
             var select = new SelectExpression(new TableExpression(fromTable));
             var insert = new InsertExpression(new TableExpression(toTable)) { Select = select };
@@ -140,7 +141,7 @@ namespace Neurotoxin.Soulshot
             ExecuteNonQuery(insert);
         }
 
-        protected InsertExpression CreateInsertExpression(object entity, TableAttribute table, ColumnInfoCollection columns)
+        protected InsertExpression CreateInsertExpression(object entity, TableAttribute table, IColumnInfoCollection columns)
         {
             var values = new ValuesExpression();
             var insert = new InsertExpression(new TableExpression(table)) { Values = values };
@@ -186,7 +187,7 @@ namespace Neurotoxin.Soulshot
             return insert;
         }
 
-        protected virtual void Insert(IEntityProxy entity, TableAttribute table, ColumnInfoCollection columns)
+        protected virtual void Insert(IEntityProxy entity, TableAttribute table, IColumnInfoCollection columns)
         {
             var insert = CreateInsertExpression(entity, table, columns);
             ExecuteNonQuery(insert);
@@ -229,8 +230,9 @@ namespace Neurotoxin.Soulshot
         public abstract void ExecuteNonQueryExpression(Expression expression);
         public abstract IEnumerable ExecuteQueryExpression(Type elementType, Expression expression);
         public abstract object ExecuteScalarExpression(Expression expression, Type type);
+        public abstract IEnumerable<T> ExecuteQuery<T>(string command, params SqlParameter[] args);
 
-        protected object MapType(Type type, Dictionary<string, object> values, ColumnInfoCollection columns)
+        protected object MapType(Type type, Dictionary<string, object> values, IColumnInfoCollection columns)
         {
             var entityType = type;
             var first = values.First();
@@ -269,8 +271,8 @@ namespace Neurotoxin.Soulshot
         public abstract bool TableExists(TableAttribute table);
         public abstract void RenameTable(TableAttribute oldName, TableAttribute newName);
         public abstract void DeleteTable(TableAttribute table);
-        public abstract void CommitChanges(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns);
-        public abstract void BulkInsert(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns);
+        public abstract void CommitChanges(IEnumerable entities, TableAttribute table, IColumnInfoCollection columns);
+        public abstract void BulkInsert(IEnumerable entities, TableAttribute table, IColumnInfoCollection columns);
         public abstract string GetLiteral(object value);
         protected abstract void ExecuteNonQuery(Expression expression);
         protected abstract IEnumerable ExecuteQuery(Type elementType, Expression expression);

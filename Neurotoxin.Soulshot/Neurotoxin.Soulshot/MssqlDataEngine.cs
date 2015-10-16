@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Data.SqlClient;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using Neurotoxin.Soulshot.Annotations;
@@ -18,13 +21,20 @@ namespace Neurotoxin.Soulshot
         private string _database;
         private SqlConnection _connection;
         private SqlTransaction _transaction;
+        private readonly Assembly _migrationAssembly;
 
         public string ConnectionString { get; private set; }
 
-        public MssqlDataEngine(string connectionString)
+        public MssqlDataEngine(string connectionString, Assembly migrationAssembly) : base(migrationAssembly)
         {
-            var r = new Regex("Initial Catalog=(.*?);", RegexOptions.IgnoreCase);
+            _migrationAssembly = migrationAssembly;
+
+            var r = new Regex("^Name=(.*)", RegexOptions.IgnoreCase);
             var m = r.Match(connectionString);
+            if (m.Success) connectionString = ConfigurationManager.ConnectionStrings[m.Groups[1].Value].ConnectionString;
+
+            r = new Regex("Initial Catalog=(.*?);", RegexOptions.IgnoreCase);
+            m = r.Match(connectionString);
             string database;
             if (m.Success)
             {
@@ -37,6 +47,7 @@ namespace Neurotoxin.Soulshot
             }
 
             EnsureDatabase(database);
+            MigrateDDL();
         }
 
         private void EnsureDatabase(string database)
@@ -53,6 +64,35 @@ namespace Neurotoxin.Soulshot
             }
         }
 
+        private void MigrateDDL()
+        {
+            using (_connection = OpenConnection())
+            {
+                lock (_connection)
+                {
+                    _transaction = null;
+
+                    var r = new Regex("[\n\r]GO[\n\r]", RegexOptions.Singleline);
+                    var manifestNames = _migrationAssembly.GetManifestResourceNames();
+                    foreach (var name in manifestNames)
+                    {
+                        if (Path.GetExtension(name) != ".sql") continue;
+                        using (var stream = _migrationAssembly.GetManifestResourceStream(name))
+                        {
+                            using (var sr = new StreamReader(stream))
+                            {
+                                var sql = sr.ReadToEnd();
+                                foreach (var sqlCommand in r.Split(sql).Where(s => !string.IsNullOrWhiteSpace(s)))
+                                {
+                                    ExecuteNonQuery(sqlCommand);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         protected override IEnumerable<ConstraintInfo> GetForeignReferences(TableAttribute table)
         {
             using (_connection = OpenConnection())
@@ -60,21 +100,26 @@ namespace Neurotoxin.Soulshot
                 lock (_connection)
                 {
                     _transaction = null;
-                    var cmd = string.Format(@"SELECT p.name as TableName, ps.name as TableSchema, fk.name as ConstraintName, cc.name as TargetColumn, pc.name as SourceColumn
-                                    FROM sys.foreign_key_columns AS r
-                                    INNER JOIN sys.tables AS c ON c.object_id = r.referenced_object_id
-                                    INNER JOIN sys.schemas AS cs ON cs.schema_id = c.schema_id
-                                    INNER JOIN sys.objects AS fk ON fk.object_id = r.constraint_object_id
-                                    INNER JOIN sys.tables AS p ON p.object_id = r.parent_object_id
-                                    INNER JOIN sys.schemas AS ps ON ps.schema_id = p.schema_id
-                                    INNER JOIN sys.columns AS cc ON cc.column_id = r.referenced_column_id AND cc.object_id = c.object_id
-                                    INNER JOIN sys.columns AS pc ON pc.column_id = r.parent_column_id AND pc.object_id = p.object_id
-                                    WHERE c.name = '{0}' and cs.name = '{1}'", table.Name, table.Schema);
+                    var cmd = @"SELECT p.name as TableName, ps.name as TableSchema, fk.name as ConstraintName, cc.name as TargetColumn, pc.name as SourceColumn
+                                FROM sys.foreign_key_columns AS r
+                                INNER JOIN sys.tables AS c ON c.object_id = r.referenced_object_id
+                                INNER JOIN sys.schemas AS cs ON cs.schema_id = c.schema_id
+                                INNER JOIN sys.objects AS fk ON fk.object_id = r.constraint_object_id
+                                INNER JOIN sys.tables AS p ON p.object_id = r.parent_object_id
+                                INNER JOIN sys.schemas AS ps ON ps.schema_id = p.schema_id
+                                INNER JOIN sys.columns AS cc ON cc.column_id = r.referenced_column_id AND cc.object_id = c.object_id
+                                INNER JOIN sys.columns AS pc ON pc.column_id = r.parent_column_id AND pc.object_id = p.object_id
+                                WHERE c.name = @tableName and cs.name = @tableSchema";
                     if (!ColumnMapper.ContainsKey(typeof (ConstraintInfo)))
                     {
                         ColumnMapper.Map<ConstraintInfo>();
                     }
-                    return ExecuteQuery<ConstraintInfo>(cmd);
+                    return (IEnumerable<ConstraintInfo>)ExecuteQueryInner(typeof (ConstraintInfo), cmd,
+                                new[]
+                                {
+                                    new SqlParameter("@tableName", table.Name),
+                                    new SqlParameter("@tableSchema", table.Schema)
+                                });
                 }
             }
         }
@@ -86,10 +131,10 @@ namespace Neurotoxin.Soulshot
                 lock (_connection)
                 {
                     _transaction = null;
-                    var cmd = string.Format(@"select count(*) from sys.objects o
-									  inner join sys.schemas s on s.schema_id = o.schema_id
-									  where type = 'U' and o.name = '{0}' and s.name = '{1}'", table.Name, table.Schema);
-                    var count = ExecuteScalar<int>(cmd);
+                    var cmd = @"select count(*) from sys.objects o
+								inner join sys.schemas s on s.schema_id = o.schema_id
+								where type = 'U' and o.name = @tableName and s.name = @tableSchema";
+                    var count = ExecuteScalar<int>(cmd, new[] { new SqlParameter("@tableName", table.Name), new SqlParameter("@tableSchema", table.Schema) });
                     return count == 1;
                 }
             }
@@ -119,6 +164,39 @@ namespace Neurotoxin.Soulshot
             }
         }
 
+        public override void AppendConstraints(TableAttribute table, ConstraintExpression constraint)
+        {
+            using (_connection = OpenConnection())
+            {
+                lock (_connection)
+                {
+                    base.AppendConstraints(table, constraint);
+                }
+            }
+        }
+
+        public override void RemoveConstraint(TableAttribute table, IEnumerable<string> constraints)
+        {
+            using (_connection = OpenConnection())
+            {
+                lock (_connection)
+                {
+                    base.RemoveConstraint(table, constraints);
+                }
+            }
+        }
+
+        public override void CopyValues(TableAttribute fromTable, TableAttribute toTable, IEnumerable<ColumnInfo> columns)
+        {
+            using (_connection = OpenConnection())
+            {
+                lock (_connection)
+                {
+                    base.CopyValues(fromTable, toTable, columns);
+                }
+            }
+        }
+
         public override void RenameTable(TableAttribute oldName, TableAttribute newName)
         {
             using (_connection = OpenConnection())
@@ -134,11 +212,17 @@ namespace Neurotoxin.Soulshot
 
         public override void DeleteTable(TableAttribute table)
         {
-            var drop = new DropTableExpression(new TableExpression(table));
-            ExecuteNonQuery(drop);
+            using (_connection = OpenConnection())
+            {
+                lock (_connection)
+                {
+                    var drop = new DropTableExpression(new TableExpression(table));
+                    ExecuteNonQuery(drop);
+                }
+            }
         }
 
-        public override void CommitChanges(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns)
+        public override void CommitChanges(IEnumerable entities, TableAttribute table, IColumnInfoCollection columns)
         {
             using (_connection = OpenConnection())
             {
@@ -157,8 +241,7 @@ namespace Neurotoxin.Soulshot
                                         var pk = columns.SingleOrDefault(c => c.IsIdentity);
                                         if (pk != null)
                                         {
-                                            var idCommand = string.Format("SELECT CAST(@@IDENTITY AS {0})",
-                                                pk.ColumnType);
+                                            var idCommand = string.Format("SELECT CAST(@@IDENTITY AS {0})", pk.ColumnType);
                                             pk.SetValue(entity, ExecuteScalar(idCommand));
                                         }
                                         entity.ClearDirty();
@@ -187,7 +270,7 @@ namespace Neurotoxin.Soulshot
             }
         }
 
-        public override void BulkInsert(IEnumerable entities, TableAttribute table, ColumnInfoCollection columns)
+        public override void BulkInsert(IEnumerable entities, TableAttribute table, IColumnInfoCollection columns)
         {
             using (_connection = OpenConnection())
             {
@@ -249,11 +332,23 @@ namespace Neurotoxin.Soulshot
             }
         }
 
+        public override IEnumerable<T> ExecuteQuery<T>(string command, params SqlParameter[] args)
+        {
+            using (_connection = OpenConnection())
+            {
+                lock (_connection)
+                {
+                    _transaction = null;
+                    return (IEnumerable<T>) ExecuteQueryInner(typeof (T), command, args);
+                }
+            }
+        }
+
         protected override IEnumerable ExecuteQuery(Type elementType, Expression expression)
         {
             var visitor = new SqlCommandTextVisitor(this);
             visitor.Visit(expression);
-            return ExecuteQuery(elementType, visitor.CommandText);
+            return ExecuteQueryInner(elementType, visitor.CommandText);
         }
 
         protected override void ExecuteNonQuery(Expression expression)
@@ -270,12 +365,7 @@ namespace Neurotoxin.Soulshot
             return ExecuteScalar(visitor.CommandText);
         }
 
-        private IEnumerable<T> ExecuteQuery<T>(string command)
-        {
-            return (IEnumerable<T>) ExecuteQuery(typeof(T), command);
-        }
-
-        private IEnumerable ExecuteQuery(Type type, string command)
+        private IEnumerable ExecuteQueryInner(Type type, string command, params SqlParameter[] args)
         {
             Debug.WriteLine(command);
 
@@ -287,6 +377,10 @@ namespace Neurotoxin.Soulshot
             {
                 using (var cmd = new SqlCommand(command, _connection))
                 {
+                    foreach (var parameter in args)
+                    {
+                        cmd.Parameters.Add(new System.Data.SqlClient.SqlParameter(parameter.Name, parameter.Value));
+                    }
                     cmd.Transaction = _transaction;
                     var reader = cmd.ExecuteReader();
 
@@ -330,12 +424,12 @@ namespace Neurotoxin.Soulshot
             }
         }
 
-        private T ExecuteScalar<T>(string command)
+        private T ExecuteScalar<T>(string command, params SqlParameter[] args)
         {
-            return (T)ExecuteScalar(command);
+            return (T)ExecuteScalar(command, args);
         }
 
-        private object ExecuteScalar(string command)
+        private object ExecuteScalar(string command, params SqlParameter[] args)
         {
             Debug.WriteLine(command);
 
@@ -343,6 +437,10 @@ namespace Neurotoxin.Soulshot
             {
                 using (var cmd = new SqlCommand(command, _connection))
                 {
+                    foreach (var parameter in args)
+                    {
+                        cmd.Parameters.Add(new System.Data.SqlClient.SqlParameter(parameter.Name, parameter.Value));
+                    }
                     cmd.Transaction = _transaction;
                     var value = cmd.ExecuteScalar();
                     return ColumnMapper.MapToType(value);

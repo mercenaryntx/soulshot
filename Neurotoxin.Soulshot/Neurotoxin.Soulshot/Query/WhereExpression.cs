@@ -9,8 +9,14 @@ namespace Neurotoxin.Soulshot.Query
 
         public WhereExpression(Expression left, Expression right) : base(ExpressionType.And, null)
         {
-            Left = left;
-            Right = right;
+            Left = CheckForShortLogicalExpression(left);
+            Right = CheckForShortLogicalExpression(right);
+        }
+
+        private Expression CheckForShortLogicalExpression(Expression node)
+        {
+            var columnExpression = node as ColumnExpression;
+            return columnExpression != null ? MakeBinary(ExpressionType.Equal, columnExpression, Constant(true)) : node;
         }
     }
 }

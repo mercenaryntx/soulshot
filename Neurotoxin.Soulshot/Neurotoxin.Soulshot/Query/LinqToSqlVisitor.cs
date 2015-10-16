@@ -7,6 +7,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using Neurotoxin.Soulshot.Annotations;
+using Neurotoxin.Soulshot.Extensions;
 
 namespace Neurotoxin.Soulshot.Query
 {
@@ -17,6 +18,7 @@ namespace Neurotoxin.Soulshot.Query
         private Expression _from;
         private Expression _where;
         private OrderByExpression _orderBy;
+        private Expression _ofType;
 
         private readonly IDbSet _dbSet;
         private readonly Type _targetExpression;
@@ -32,6 +34,9 @@ namespace Neurotoxin.Soulshot.Query
 
         public SqlExpression GetResult()
         {
+            if (_ofType != null) _where = _where == null ? _ofType : new WhereExpression(_where, _ofType);
+            if (_where != null && !(_where is WhereExpression)) _where = new WhereExpression(_where, null);
+
             if (_targetExpression == typeof(SelectExpression))
             {
                 var select = _select ?? new SelectExpression();
@@ -112,6 +117,8 @@ namespace Neurotoxin.Soulshot.Query
                 case "Where":
                 case "Single":
                 case "SingleOrDefault":
+                case "StartsWith":
+                case "EndsWith":
                     _where = _where == null ? expression : new WhereExpression(_where, expression);
                     break;
                 case "Select":
@@ -144,8 +151,6 @@ namespace Neurotoxin.Soulshot.Query
                     if (_select == null) _select = new SelectExpression();
                     _select.Top = node.Arguments[1];
                     break;
-                case "Skip":
-                    throw new NotImplementedException();
                 case "OrderBy":
                 case "ThenBy":
                     if (_orderBy == null) _orderBy = new OrderByExpression();
@@ -156,11 +161,20 @@ namespace Neurotoxin.Soulshot.Query
                     if (_orderBy == null) _orderBy = new OrderByExpression();
                     _orderBy.AddColumn(expression, ListSortDirection.Descending);
                     break;
-                case "Contains":
-                case "StartsWith":
-                case "EndsWith":
-                case "AssignNewValue":
+                case "OfType":
+                    if (_ofType == null)
+                    {
+                        var constantExpression = expression as ConstantExpression;
+                        var param = constantExpression == null ? node.Method.ReturnType.GetGenericArguments()[0] : constantExpression.Value;
+                        var types = _dbSet.GetDiscriminatorValues((Type)param);
+                        if (types != null) _ofType = new ContainsExpression(new ColumnExpression("Discriminator"), types.Cast<Type>().Select(t => t.FullName));
+                    }
                     break;
+                case "Contains":
+                    break;
+                case "Skip":
+                case "AssignNewValue":
+                    throw new NotImplementedException();
                 default:
                     throw new NotSupportedException("Not supported method: " + node.Method.Name);
             }
@@ -174,6 +188,11 @@ namespace Neurotoxin.Soulshot.Query
             {
                 var left = BuildExpression(binaryExpression.Left);
                 var right = BuildExpression(binaryExpression.Right);
+                if (binaryExpression.Type == typeof(bool) && (binaryExpression.NodeType == ExpressionType.And || binaryExpression.NodeType == ExpressionType.AndAlso))
+                {
+                    left = CheckForShortLogicalExpression(left);
+                    right = CheckForShortLogicalExpression(right);
+                }
 
                 if (binaryExpression.NodeType == ExpressionType.Equal && left.Type != right.Type)
                 {
@@ -304,19 +323,14 @@ namespace Neurotoxin.Soulshot.Query
 
         private ContainsExpression BuildContainsExpression(MethodCallExpression methodCallExpression)
         {
-            var containsExpression = new ContainsExpression
-            {
-                Column = (ColumnExpression)BuildExpression(methodCallExpression.Arguments[1])
-            };
-
             var constant = (ConstantExpression)BuildExpression(methodCallExpression.Arguments[0]);
             var enumerable = constant.Value as IEnumerable;
             if (enumerable == null) throw new NotSupportedException("Invalid type: " + constant.Value.GetType());
 
-            foreach (var value in enumerable)
-            {
-                containsExpression.AddContent(Expression.Constant(value));
-            }
+            var containsExpression = new ContainsExpression((ColumnExpression) BuildExpression(methodCallExpression.Arguments[1]),
+                enumerable
+            );
+
             return containsExpression;
         }
 
@@ -362,6 +376,13 @@ namespace Neurotoxin.Soulshot.Query
             throw new NotSupportedException();
         }
 
+        protected virtual Expression CheckForShortLogicalExpression(Expression node)
+        {
+            var columnExpression = node as ColumnExpression;
+            return columnExpression != null
+                ? Expression.MakeBinary(ExpressionType.Equal, columnExpression, Expression.Constant(true))
+                : node;
+        }
 
         //private TableExpression GetTable(IDbSet dbSet, string memberName)
         //{

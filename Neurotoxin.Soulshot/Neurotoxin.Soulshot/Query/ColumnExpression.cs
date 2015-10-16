@@ -20,5 +20,9 @@ namespace Neurotoxin.Soulshot.Query
             Table = table;
         }
 
+        public override string ToString()
+        {
+            return string.Format("[{0}]", ColumnName.Name);
+        }
     }
 }

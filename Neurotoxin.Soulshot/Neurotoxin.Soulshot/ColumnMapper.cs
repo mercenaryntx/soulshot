@@ -15,24 +15,16 @@ namespace Neurotoxin.Soulshot
 
         private readonly Dictionary<Type, ColumnTypeAttribute> _defaultTypeAttributes = new Dictionary<Type, ColumnTypeAttribute>();
         private readonly Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase> _mappers = new Dictionary<KeyValuePair<Type, ColumnTypeAttribute>, MapperBase>();
-        private readonly Dictionary<Type, ColumnInfoCollection> _typeCache = new Dictionary<Type, ColumnInfoCollection>();
+        private readonly Dictionary<Type, IColumnInfoCollection> _typeCache = new Dictionary<Type, IColumnInfoCollection>();
         public DbContext Context { get; internal set; }
 
-        public ColumnMapper()
+        public ColumnMapper(Assembly migrationAssembly)
         {
-            var mapperbase = typeof (MapperBase);
-            foreach (
-                var type in
-                    mapperbase.Assembly.GetTypes()
-                        .Where(t => t.IsClass && !t.IsAbstract && mapperbase.IsAssignableFrom(t) && !t.IsGenericType))
-            {
-                var mapper = (MapperBase) Activator.CreateInstance(type);
-                _defaultTypeAttributes.Add(mapper.PropertyType, mapper.ColumnType);
-                _mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(mapper.PropertyType, mapper.ColumnType), mapper);
-            }
+            ImportMappers(GetType().Assembly);
+            if (migrationAssembly != null) ImportMappers(migrationAssembly);
         }
 
-        public ColumnInfoCollection this[Type key]
+        public IColumnInfoCollection this[Type key]
         {
             get { return _typeCache[key]; }
         }
@@ -42,25 +34,22 @@ namespace Neurotoxin.Soulshot
             return _typeCache.ContainsKey(key);
         }
 
-        public ColumnInfoCollection Map<TEntity>(TableAttribute table = null)
+        public IColumnInfoCollection Map<TEntity>(TableAttribute table = null)
         {
             return Map(typeof(TEntity), table);
         }
 
-        public ColumnInfoCollection Map(Type baseType, TableAttribute table = null)
+        public IColumnInfoCollection Map(Type baseType, TableAttribute table = null)
         {
             if (ContainsKey(baseType)) return this[baseType];
 
-            var collection = new ColumnInfoCollection(baseType, table);
+            var collection = (IColumnInfoCollection) typeof(ColumnInfoCollection<>).MakeGenericType(baseType)
+                .GetConstructors()
+                .First()
+                .Invoke(new object[] {table, null});
             var columns = new Dictionary<string, ColumnInfo>();
 
-            var types = baseType.Assembly.GetTypes()
-                                         .Where(baseType.IsAssignableFrom)
-                                         .OrderBy(t => t.GetGenerationNumberFrom(baseType))
-                                         .ThenBy(t => t.Name)
-                                         .ToList();
-
-            if (types.Count > 1)
+            if (collection.MappedTypes.Length > 1)
                 columns.Add(DiscriminatorColumnName, new ColumnInfo
                 {
                     TableName = table != null ? table.Name : null,
@@ -71,7 +60,7 @@ namespace Neurotoxin.Soulshot
                     IndexType = IndexType.Default
                 });
 
-            foreach (var pi in types.SelectMany(t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)))
+            foreach (var pi in collection.MappedTypes.SelectMany(t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)))
             {
                 if (IsIgnorable(pi)) continue;
                 var columnTypeAttribute = GetColumnType(pi);
@@ -82,7 +71,7 @@ namespace Neurotoxin.Soulshot
                     continue;
                 }
                 var foreignKeyAttribute = columnTypeAttribute as ForeignKeyAttribute;
-                ColumnInfoCollection referenceTable = null;
+                IColumnInfoCollection referenceTable = null;
                 if (foreignKeyAttribute != null)
                 {
                     referenceTable = foreignKeyAttribute.DbSet.Columns;
@@ -185,11 +174,6 @@ namespace Neurotoxin.Soulshot
             return _mappers.ContainsKey(key) ? _mappers[key] : null;
         }
 
-        private bool IsIgnorable(PropertyInfo pi)
-        {
-            return pi.HasAttribute<IgnoreAttribute>();
-        }
-
         internal ColumnTypeAttribute GetColumnType(PropertyInfo pi)
         {
             var attribute = pi.GetAttribute<ColumnTypeAttribute>() ?? GetDefaultColumnType(pi.PropertyType);
@@ -220,6 +204,11 @@ namespace Neurotoxin.Soulshot
             return _defaultTypeAttributes[type];
         }
 
+        private bool IsIgnorable(PropertyInfo pi)
+        {
+            return pi.HasAttribute<IgnoreAttribute>();
+        }
+
         private bool IsEnum(Type type)
         {
             if (type.IsEnum) return true;
@@ -245,5 +234,21 @@ namespace Neurotoxin.Soulshot
             return type.IsClass ? type.GetProperties().SingleOrDefault(pi => pi.HasAttribute<KeyAttribute>()) : null;
         }
 
+        private void ImportMappers(Assembly assembly)
+        {
+            var mapperbase = typeof(MapperBase);
+            foreach (var type in assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && mapperbase.IsAssignableFrom(t) && !t.IsGenericType))
+            {
+                var mapper = (MapperBase)Activator.CreateInstance(type);
+                _defaultTypeAttributes.Add(mapper.PropertyType, mapper.ColumnType);
+                _mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(mapper.PropertyType, mapper.ColumnType), mapper);
+                if (mapper.PropertyType.IsValueType)
+                {
+                    var nullable = typeof(Nullable<>).MakeGenericType(mapper.PropertyType);
+                    _defaultTypeAttributes.Add(nullable, mapper.ColumnType);
+                    _mappers.Add(new KeyValuePair<Type, ColumnTypeAttribute>(nullable, mapper.ColumnType), mapper);
+                }
+            }
+        }
     }
 }

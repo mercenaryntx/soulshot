@@ -36,6 +36,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Data.Entity" />
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
@@ -51,6 +52,8 @@
   </Choose>
   <ItemGroup>
     <Compile Include="DbSetTests.cs" />
+    <Compile Include="Mappers\GeographyMapper.cs" />
+    <Compile Include="Mappers\GeographyAttribute.cs" />
     <Compile Include="Models\Address.cs" />
     <Compile Include="Models\City.cs" />
     <Compile Include="Models\ClassA.cs" />
@@ -59,8 +62,11 @@
     <Compile Include="Models\ClassD.cs" />
     <Compile Include="Models\ClassE.cs" />
     <Compile Include="Models\Country.cs" />
+    <Compile Include="Models\Sample.cs" />
     <Compile Include="Models\EntityBase.cs" />
     <Compile Include="Models\Person.cs" />
+    <Compile Include="Models\TestContext4.cs" />
+    <Compile Include="Models\TestContext3.cs" />
     <Compile Include="Models\TestContext.cs" />
     <Compile Include="Models\TestContext2.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

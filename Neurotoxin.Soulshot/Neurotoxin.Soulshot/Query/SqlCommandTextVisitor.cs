@@ -1,112 +1,80 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
-using Neurotoxin.Soulshot.Extensions;
 
 namespace Neurotoxin.Soulshot.Query
 {
     public class SqlCommandTextVisitor : ExpressionVisitor
     {
+        private const string Missing = "<MISSING>";
         private readonly StringBuilder _commandBuilder = new StringBuilder();
-        private readonly IDataEngine _dataEngine;
         private bool _useAliases = true;
+        private bool _isNullEnabled;
+        private readonly TypeSwitch<Expression> _typeSwitch;
 
-        public string CommandText
+        private static readonly Dictionary<Type, Func<object, string>> TypeToSqlMapping = new Dictionary<Type, Func<object, string>>
         {
-            get { return _commandBuilder.ToString(); }
-        }
+            { typeof(bool), o => (bool) o ? "1" : "0" },
+            { typeof(DateTime), o => $"'{o:yyyy-MM-dd HH:mm:ss}'" },
+            { typeof(double), o => ((double) o).ToString("0.00", CultureInfo.InvariantCulture) },
+            { typeof(float), o => ((float) o).ToString("0.00", CultureInfo.InvariantCulture) },
+            { typeof(decimal), o => ((decimal) o).ToString("0.00", CultureInfo.InvariantCulture) },
+            { typeof(Enum), o => ((int)o).ToString() },
+            { typeof(Guid), o => $"'{o}'" },
+            { typeof(TimeSpan), o => $"'{o}'" },
+            { typeof(string), o => $"N'{((string)o).Replace("'","''")}'" },
+            { typeof(short), o => o.ToString() },
+            { typeof(int), o => o.ToString() },
+            { typeof(long), o => o.ToString() },
+        }; 
 
-        public SqlCommandTextVisitor(IDataEngine dataEngine)
+        public string CommandText => _commandBuilder.ToString();
+        public List<Exception> Errors { get; } = new List<Exception>();
+        public ParameterizedQueryMode ParameterizedQueryMode { get; }
+
+        public SqlCommandTextVisitor(ParameterizedQueryMode parameterizedQueryMode = ParameterizedQueryMode.ParameterizedQuery)
         {
-            _dataEngine = dataEngine;
+            ParameterizedQueryMode = parameterizedQueryMode;
+            _typeSwitch = new TypeSwitch<Expression>()
+                .Case<CreateTableExpression>(VisitCreateTable)
+                .Case<AlterTableExpression>(VisitAlterTable)
+                .Case<DropTableExpression>(VisitDropTable)
+                .Case<ConstraintExpression>(VisitConstraint)
+                .Case<SelectExpression>(VisitSelect)
+                .Case<DeleteExpression>(VisitDelete)
+                .Case<UpdateExpression>(VisitUpdate)
+                .Case<SetExpression>(VisitSet)
+                .Case<InsertExpression>(VisitInsert)
+                .Case<ValuesExpression>(VisitValues)
+                .Case<ListingExpression>(VisitListing)
+                .Case<WhereExpression>(VisitWhere)
+                .Case<ColumnExpression>(VisitColumn)
+                .Case<ColumnDefinitionExpression>(VisitColumnDefinition)
+                .Case<TableExpression>(VisitTable)
+                .Case<AsteriskExpression>(VisitAsterisk)
+                .Case<SqlPartExpression>(VisitSqlPart)
+                .Case<CountExpression>(VisitCount)
+                .Case<MaxExpression>(VisitMax)
+                .Case<ContainsExpression>(VisitContains)
+                .Case<LikeExpression>(VisitLike)
+                .Case<OrderByExpression>(VisitOrderBy)
+                .Case<ColumnOrderExpression>(VisitColumnOrder)
+                .Case<CreateIndexExpression>(VisitCreateIndex)
+                .Case<ObjectNameExpression>(VisitObjectName)
+                .Case<JoinExpression>(VisitJoin)
+                .Case<ConvertExpression>(VisitConvert)
+                .Case<InExpression>(VisitIn)
+                .Case<ParameterExpression>(VisitParameter)
+                .Default(base.Visit);
         }
 
         public override Expression Visit(Expression node)
         {
-            var alterTableExpression = node as AlterTableExpression;
-            if (alterTableExpression != null) return VisitAlterTable(alterTableExpression);
-
-            var createTableExpression = node as CreateTableExpression;
-            if (createTableExpression != null) return VisitCreateTable(createTableExpression);
-
-            var dropTableExpression = node as DropTableExpression;
-            if (dropTableExpression != null) return VisitDropTable(dropTableExpression);
-
-            var constraintExpression = node as ConstraintExpression;
-            if (constraintExpression != null) return VisitConstraint(constraintExpression);
-
-            var selectExpression = node as SelectExpression;
-            if (selectExpression != null) return VisitSelect(selectExpression);
-
-            var deleteExpression = node as DeleteExpression;
-            if (deleteExpression != null) return VisitDelete(deleteExpression);
-
-            var updateExpression = node as UpdateExpression;
-            if (updateExpression != null) return VisitUpdate(updateExpression);
-
-            var insertExpression = node as InsertExpression;
-            if (insertExpression != null) return VisitInsert(insertExpression);
-
-            var valuesExpression = node as ValuesExpression;
-            if (valuesExpression != null) return VisitValues(valuesExpression);
-
-            var listingExpression = node as ListingExpression;
-            if (listingExpression != null) return VisitListing(listingExpression);
-
-            var whereExpression = node as WhereExpression;
-            if (whereExpression != null) return VisitWhere(whereExpression);
-
-            var columnExpression = node as ColumnExpression;
-            if (columnExpression != null) return VisitColumn(columnExpression);
-
-            var columnDefinitionExpression = node as ColumnDefinitionExpression;
-            if (columnDefinitionExpression != null) return VisitColumnDefinition(columnDefinitionExpression);
-
-            var tableExpression = node as TableExpression;
-            if (tableExpression != null) return VisitTable(tableExpression);
-
-            var asteriskExpression = node as AsteriskExpression;
-            if (asteriskExpression != null) return VisitAsterisk(asteriskExpression);
-
-            var sqlPartExpression = node as SqlPartExpression;
-            if (sqlPartExpression != null) return VisitSqlPart(sqlPartExpression);
-
-            var countExpression = node as CountExpression;
-            if (countExpression != null) return VisitCount(countExpression);
-
-            var maxExpression = node as MaxExpression;
-            if (maxExpression != null) return VisitMax(maxExpression);
-
-            var containsExpression = node as ContainsExpression;
-            if (containsExpression != null) return VisitContains(containsExpression);
-
-            var likeExpression = node as LikeExpression;
-            if (likeExpression != null) return VisitLike(likeExpression);
-
-            var orderByExpression = node as OrderByExpression;
-            if (orderByExpression != null) return VisitOrderBy(orderByExpression);
-
-            var columnOrderExpression = node as ColumnOrderExpression;
-            if (columnOrderExpression != null) return VisitColumnOrder(columnOrderExpression);
-
-            var createIndexExpression = node as CreateIndexExpression;
-            if (createIndexExpression != null) return VisitCreateIndex(createIndexExpression);
-
-            var objectNameExpression = node as ObjectNameExpression;
-            if (objectNameExpression != null) return VisitObjectName(objectNameExpression);
-
-            var joinExpression = node as JoinExpression;
-            if (joinExpression != null) return VisitJoin(joinExpression);
-
-            var setExpression = node as SetExpression;
-            if (setExpression != null) return VisitSet(setExpression);
-
-            var convertExpression = node as ConvertExpression;
-            if (convertExpression != null) return VisitConvert(convertExpression);
-
-            return base.Visit(node);
+            return _typeSwitch.Switch(node);
         }
 
         protected virtual Expression VisitCreateTable(CreateTableExpression node)
@@ -157,7 +125,9 @@ namespace Neurotoxin.Soulshot.Query
                             Append("FOREIGN KEY");
                             break;
                         default:
-                            throw new NotSupportedException(node.ConstraintType.ToString());
+                            Errors.Add(new NotSupportedException(node.ConstraintType.ToString()));
+                            Append(Missing);
+                            break;
                     }
                     Append("(");
                     Visit(node.Columns);
@@ -176,7 +146,9 @@ namespace Neurotoxin.Soulshot.Query
                     Visit(node.Name);
                     break;
                 default:
-                    throw new NotSupportedException("Invalid node type: " + node.NodeType);
+                    Errors.Add(new NotSupportedException("Invalid node type: " + node.NodeType));
+                    Append(Missing);
+                    break;
             }
             return node;
         }
@@ -184,6 +156,10 @@ namespace Neurotoxin.Soulshot.Query
         protected virtual Expression VisitSelect(SelectExpression node)
         {
             Append("SELECT");
+            if (node.Distinct)
+            {
+                Append("DISTINCT ");
+            }
             if (node.Top != null)
             {
                 Append("TOP ");
@@ -192,12 +168,25 @@ namespace Neurotoxin.Soulshot.Query
             Visit(node.Selection);
             Append("FROM");
             Visit(node.From);
+            if (node.Joins != null)
+            {
+                foreach (var joinExpression in node.Joins)
+                {
+                    VisitJoin(joinExpression);
+                }
+            }
             if (node.Where != null)
             {
+                _isNullEnabled = true;
                 Append("WHERE");
                 Visit(node.Where);
             }
             Visit(node.OrderBy);
+            if (node.Union != null)
+            {
+                Append("UNION");
+                VisitSelect(node.Union);
+            }
             return node;
         }
 
@@ -221,7 +210,15 @@ namespace Neurotoxin.Soulshot.Query
             //TODO: support from
             Visit(node.Target);
             Append("SET");
-            Visit(node.Set);
+            if (node.Set == null)
+            {
+                Errors.Add(new FormatException("List of columns to be updated needs to be specified."));
+                Append(Missing);
+            }
+            else
+            {
+                Visit(node.Set);
+            }
             if (node.Where != null)
             {
                 Append("WHERE");
@@ -305,7 +302,7 @@ namespace Neurotoxin.Soulshot.Query
         protected virtual Expression VisitColumn(ColumnExpression node)
         {
             var doSpace = true;
-            if (_useAliases && node.Table != null && !string.IsNullOrEmpty(node.Table.Alias))
+            if (_useAliases && !string.IsNullOrEmpty(node.Table?.Alias))
             {
                 Append(node.Table.Alias);
                 Append(".", false);
@@ -332,25 +329,13 @@ namespace Neurotoxin.Soulshot.Query
             Append(c.ColumnName);
             Append("]", false);
             Append(c.ColumnType);
-            if (c.ReferenceTable == null)
+            if (c.IsIdentity) Append("IDENTITY(1,1)");
+            if (!c.IsNullable) Append("NOT");
+            Append("NULL");
+            if (c.DefaultValue != null && !c.IsIdentity)
             {
-                if (c.IsIdentity) Append("IDENTITY(1,1)");
-                if (!c.IsNullable) Append("NOT");
-                Append("NULL");
-                if (c.DefaultValue != null && !c.IsIdentity)
-                {
-                    Append("DEFAULT");
-                    Append(_dataEngine.GetLiteral(c.DefaultValue));
-                }
-            }
-            else
-            {
-                //TODO: use DbSet instead
-                var pkFields = _dataEngine.ColumnMapper[c.ReferenceTable.BaseType].Where(cc => cc.IsIdentity).Select(cc => cc.ColumnName);
-
-                if (!c.IsNullable) Append("NOT NULL");
-                Append("FOREIGN KEY REFERENCES");
-                Append(string.Format("{0}({1})", c.ReferenceTable.BaseType.GetTableAttribute().FullName, string.Join(",", pkFields)));
+                Append("DEFAULT");
+                Append(GetLiteralInner(c.DefaultValue));
             }
             return node;
         }
@@ -358,12 +343,32 @@ namespace Neurotoxin.Soulshot.Query
         protected virtual Expression VisitTable(TableExpression node)
         {
             var pattern = _useAliases ? "{0} {1}" : "{0}";
-            Append(string.Format(pattern, node.Table.FullNameWithBrackets, node.Alias));
+            Append(string.Format(pattern, node.Table.Name, node.Alias));
+            switch (node.TableHint)
+            {
+                case TableHint.None:
+                    break;
+                case TableHint.Snapshot:
+                    Append("WITH (SNAPSHOT)");
+                    break;
+                case TableHint.NoLock:
+                    Append("WITH (NOLOCK)");
+                    break;
+                default:
+                    Errors.Add(new NotSupportedException("Not supported table hint: " + node.TableHint));
+                    Append(Missing);
+                    break;
+            }
             return node;
         }
 
         protected virtual Expression VisitAsterisk(AsteriskExpression node)
         {
+            if (_useAliases && !string.IsNullOrEmpty(node.Table?.Alias))
+            {
+                Append(node.Table.Alias);
+                Append(".", false);
+            }
             Append("*");
             return node;
         }
@@ -391,8 +396,20 @@ namespace Neurotoxin.Soulshot.Query
         protected virtual Expression VisitContains(ContainsExpression node)
         {
             Visit(node.Column);
+            if (node.IsNot) Append("NOT");
             Append("IN (");
-            Visit(node.Content);
+            var i = 0;
+            foreach (var v in node.Content)
+            {
+                if (i++!=0) Append(", ", false);
+                Append(GetLiteralInner(v));
+                
+            }
+            if (i == 0)
+            {
+                Errors.Add(new FormatException("Sequence contains no element"));
+                Append("<MISSING>");
+            }
             Append(")", false);
             return node;
         }
@@ -458,7 +475,9 @@ namespace Neurotoxin.Soulshot.Query
                     Append("FULL OUTER");
                     break;
                 default:
-                    throw new NotSupportedException("Invalid join type: " + node.JoinType);
+                    Errors.Add(new NotSupportedException("Invalid join type: " + node.JoinType));
+                    Append(Missing);
+                    break;
             }
             Append("JOIN");
             Visit(node.Table);
@@ -470,18 +489,69 @@ namespace Neurotoxin.Soulshot.Query
         protected virtual Expression VisitConvert(ConvertExpression node)
         {
             Append("CONVERT(");
-            Append(node.ToType.ToString());
+            Append(node.ToType);
             Append(",");
             Visit(node.Column);
             Append(")", false);
             return node;
         }
 
+        protected virtual Expression VisitIn(InExpression node)
+        {
+            Visit(node.Left);
+            if (node.IsNot) Append("NOT");
+            Append("IN (");
+            var visitor = new SqlCommandTextVisitor(ParameterizedQueryMode);
+            visitor.Visit(node.Right);
+            Append(visitor.CommandText, false);
+            //            Visit(node.Right);
+            Append(")", false);
+            return node;
+        }
+
+        protected virtual Expression VisitParameter(ParameterExpression node)
+        {
+            switch (ParameterizedQueryMode)
+            {
+                case ParameterizedQueryMode.ParameterizedQuery:
+                    Append($"@p{node.Index}");
+                    break;
+                case ParameterizedQueryMode.StringFormat:
+                    Append($"{{{node.Index}}}");
+                    break;
+                default:
+                    Errors.Add(new NotSupportedException("Invalid parameterized query mode: " + ParameterizedQueryMode));
+                    Append(Missing);
+                    break;
+            }
+
+            return node;
+        }
+
         protected override Expression VisitBinary(BinaryExpression node)
         {
             VisitBinaryBranch(node.Left, node.NodeType);
-            Append(ToSign(node.NodeType));
-            VisitBinaryBranch(node.Right, node.NodeType);
+            if (_isNullEnabled && node.Right.NodeType == ExpressionType.Constant && ((ConstantExpression) node.Right).Value == null)
+            {
+                switch (node.NodeType)
+                {
+                    case ExpressionType.Equal:
+                        Append("is null");
+                        break;
+                    case ExpressionType.NotEqual:
+                        Append("is not null");
+                        break;
+                    default:
+                        Errors.Add(new NotSupportedException("Invalid node type " + node.NodeType));
+                        Append(Missing);
+                        break;
+                }
+            }
+            else
+            {
+                Append(ToSign(node.NodeType));
+                VisitBinaryBranch(node.Right, node.NodeType);
+            }
             return node;
         }
 
@@ -498,7 +568,7 @@ namespace Neurotoxin.Soulshot.Query
 
         protected override Expression VisitConstant(ConstantExpression node)
         {
-            Append(_dataEngine.GetLiteral(node.Value));
+            Append(GetLiteralInner(node.Value));
             return node;
         }
 
@@ -537,7 +607,8 @@ namespace Neurotoxin.Soulshot.Query
                 case ExpressionType.Default:
                     return string.Empty;
                 default:
-                    throw new NotImplementedException(type.ToString());
+                    Errors.Add(new NotImplementedException(type.ToString()));
+                    return Missing;
             }
         }
 
@@ -552,5 +623,26 @@ namespace Neurotoxin.Soulshot.Query
             _commandBuilder.Append(s);
         }
 
+        private string GetLiteralInner(object value)
+        {
+            try
+            {
+                return GetLiteral(value);
+            }
+            catch (Exception ex)
+            {
+                Errors.Add(ex);
+                return Missing;
+            }
+        }
+
+        public static string GetLiteral(object value)
+        {
+            if (value == null) return "NULL";
+            var type = value.GetType();
+            if (!TypeToSqlMapping.ContainsKey(type))
+                throw new NotSupportedException($"Unmappable type: {type} (value: {value})");
+            return TypeToSqlMapping[type].Invoke(value);
+        }
     }
 }

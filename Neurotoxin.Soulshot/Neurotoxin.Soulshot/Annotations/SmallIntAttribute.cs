@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class SmallIntAttribute : ColumnTypeAttribute
+    public class SmallIntAttribute : ColumnAttribute
     {
         public SmallIntAttribute() : base("smallint")
         {

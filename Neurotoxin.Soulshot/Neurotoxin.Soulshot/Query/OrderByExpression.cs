@@ -13,5 +13,10 @@ namespace Neurotoxin.Soulshot.Query
             //NOTE: intentional switch of branches
             By = By == null ? expression : new ListingExpression(expression, By);
         }
+
+        public override string ToString()
+        {
+            return By.ToString();
+        }
     }
 }

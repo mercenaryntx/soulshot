@@ -1,14 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{9A553605-7C2E-4201-A439-3A7AA55FD5F8}</ProjectGuid>
+    <ProjectGuid>{120CB14A-2432-4FA9-9999-1C9F5AC98D9F}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Neurotoxin.Soulshot.Tests</RootNamespace>
     <AssemblyName>Neurotoxin.Soulshot.Tests</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{3AC096D0-A1C2-E12C-1390-A8335801FDAB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
@@ -36,7 +36,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="System.Data.Entity" />
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
@@ -52,8 +51,6 @@
   </Choose>
   <ItemGroup>
     <Compile Include="DbSetTests.cs" />
-    <Compile Include="Mappers\GeographyMapper.cs" />
-    <Compile Include="Mappers\GeographyAttribute.cs" />
     <Compile Include="Models\Address.cs" />
     <Compile Include="Models\City.cs" />
     <Compile Include="Models\ClassA.cs" />
@@ -62,18 +59,16 @@
     <Compile Include="Models\ClassD.cs" />
     <Compile Include="Models\ClassE.cs" />
     <Compile Include="Models\Country.cs" />
-    <Compile Include="Models\Sample.cs" />
     <Compile Include="Models\EntityBase.cs" />
     <Compile Include="Models\Person.cs" />
-    <Compile Include="Models\TestContext4.cs" />
-    <Compile Include="Models\TestContext3.cs" />
-    <Compile Include="Models\TestContext.cs" />
-    <Compile Include="Models\TestContext2.cs" />
+    <Compile Include="Models\Sample.cs" />
+    <Compile Include="TestContext.cs" />
+    <Compile Include="UnitTest1.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Neurotoxin.Soulshot\Neurotoxin.Soulshot.csproj">
-      <Project>{625fdac9-d2eb-470d-98d0-ff497e797a62}</Project>
+      <Project>{66d701f8-6bfb-4f3f-98fc-6398cd6ae409}</Project>
       <Name>Neurotoxin.Soulshot</Name>
     </ProjectReference>
   </ItemGroup>

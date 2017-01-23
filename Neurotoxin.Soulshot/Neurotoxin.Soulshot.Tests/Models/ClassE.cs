@@ -2,6 +2,6 @@
 {
     public class ClassE : ClassA
     {
-        public virtual string Lorem { get; set; }
+        public string Lorem { get; set; }
     }
 }

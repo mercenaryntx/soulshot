@@ -2,6 +2,6 @@
 {
     public class ClassC : ClassA
     {
-        public virtual string Text { get; set; }
+        public string Text { get; set; }
     }
 }

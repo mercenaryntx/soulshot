@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class SmallDateTimeAttribute : ColumnTypeAttribute
+    public class SmallDateTimeAttribute : ColumnAttribute
     {
         public SmallDateTimeAttribute() : base("smalldatetime")
         {

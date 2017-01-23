@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class BigIntAttribute : ColumnTypeAttribute
+    public class BigIntAttribute : ColumnAttribute
     {
         public BigIntAttribute() : base("bigint")
         {

@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class BitAttribute : ColumnTypeAttribute
+    public class BitAttribute : ColumnAttribute
     {
         public BitAttribute() : base("bit")
         {

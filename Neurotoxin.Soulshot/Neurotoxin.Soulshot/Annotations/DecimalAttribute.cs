@@ -1,6 +1,6 @@
 namespace Neurotoxin.Soulshot.Annotations
 {
-    public class DecimalAttribute : ColumnTypeAttribute
+    public class DecimalAttribute : ColumnAttribute
     {
         public DecimalAttribute() : base("decimal")
         {

@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class NumericAttribute : ColumnTypeAttribute
+    public class NumericAttribute : ColumnAttribute
     {
         public NumericAttribute(int precision) : base("numeric")
         {

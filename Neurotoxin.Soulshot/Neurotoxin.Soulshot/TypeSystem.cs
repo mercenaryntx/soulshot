@@ -7,47 +7,44 @@ namespace Neurotoxin.Soulshot
     {
         internal static Type GetElementType(Type seqType)
         {
-            Type ienum = FindIEnumerable(seqType);
-            if (ienum == null) return seqType;
-            return ienum.GetGenericArguments()[0];
+            var ienum = FindIEnumerable(seqType);
+            return ienum == null ? seqType : ienum.GetGenericArguments()[0];
         }
 
         private static Type FindIEnumerable(Type seqType)
         {
-            if (seqType == null || seqType == typeof(string))
-                return null;
-
-            if (seqType.IsArray)
-                return typeof(IEnumerable<>).MakeGenericType(seqType.GetElementType());
-
-            if (seqType.IsGenericType)
+            while (true)
             {
-                foreach (Type arg in seqType.GetGenericArguments())
+                if (seqType == null || seqType == typeof (string)) return null;
+                if (seqType.IsArray) return typeof (IEnumerable<>).MakeGenericType(seqType.GetElementType());
+
+                if (seqType.IsGenericType)
                 {
-                    Type ienum = typeof(IEnumerable<>).MakeGenericType(arg);
-                    if (ienum.IsAssignableFrom(seqType))
+                    foreach (var arg in seqType.GetGenericArguments())
                     {
-                        return ienum;
+                        var ienum = typeof (IEnumerable<>).MakeGenericType(arg);
+                        if (ienum.IsAssignableFrom(seqType)) return ienum;
                     }
                 }
-            }
 
-            Type[] ifaces = seqType.GetInterfaces();
-            if (ifaces != null && ifaces.Length > 0)
-            {
-                foreach (Type iface in ifaces)
+                var ifaces = seqType.GetInterfaces();
+                if (ifaces.Length > 0)
                 {
-                    Type ienum = FindIEnumerable(iface);
-                    if (ienum != null) return ienum;
+                    foreach (var iface in ifaces)
+                    {
+                        var ienum = FindIEnumerable(iface);
+                        if (ienum != null) return ienum;
+                    }
                 }
-            }
 
-            if (seqType.BaseType != null && seqType.BaseType != typeof(object))
-            {
-                return FindIEnumerable(seqType.BaseType);
-            }
+                if (seqType.BaseType != null && seqType.BaseType != typeof (object))
+                {
+                    seqType = seqType.BaseType;
+                    continue;
+                }
 
-            return null;
+                return null;
+            }
         }
     }
 }

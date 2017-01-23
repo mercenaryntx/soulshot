@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class CharacterAttribute : ColumnTypeAttribute
+    public class CharacterAttribute : ColumnAttribute
     {
         public CharacterAttribute() : base("char")
         {

@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class IntegerAttribute : ColumnTypeAttribute
+    public class IntegerAttribute : ColumnAttribute
     {
         public IntegerAttribute() : base("int")
         {

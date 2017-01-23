@@ -2,6 +2,6 @@
 {
     public class ClassD : EntityBase
     {
-        public virtual long NumberOfSomething { get; set; }
+        public long NumberOfSomething { get; set; }
     }
 }

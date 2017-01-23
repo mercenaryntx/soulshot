@@ -1,28 +1,24 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq.Expressions;
-using Neurotoxin.Soulshot.Annotations;
+using EPAM.ReserveAIR.Shared.Repositories;
 
 namespace Neurotoxin.Soulshot
 {
     public interface IDataEngine : IDisposable
     {
-        ColumnMapper ColumnMapper { get; set; }
+        IDbConnection Connection { get; }
+        string ConnectionString { get; set; }
 
-        bool TableExists<TEntity>();
-        bool TableExists(TableAttribute table);
-        IColumnInfoCollection UpdateTable<TEntity>(TableAttribute table, IColumnInfoCollection actualColumns, IEnumerable<ColumnInfo> storedColumns);
-        void RenameTable(TableAttribute oldName, TableAttribute newName);
-        IEnumerable<TEntity> Execute<TEntity>(Expression expression);
-        void CommitChanges(IEnumerable entities, TableAttribute table, IColumnInfoCollection columns);
-        void BulkInsert(IEnumerable entities, TableAttribute table, IColumnInfoCollection columns);
-        string GetLiteral(object value);
+        IEnumerable ExecuteQuery(Expression expression, Type entityType);
+        IEnumerable ExecuteQuery(string query, Type entityType);
+        IEnumerable<T> ExecuteQuery<T>(string query);
+        void ExecuteCommand(string command);
 
-        void ExecuteNonQueryExpression(Expression expression);
-        IEnumerable ExecuteQueryExpression(Type elementType, Expression expression);
-        object ExecuteScalarExpression(Expression expression, Type type);
-
-        IEnumerable<T> ExecuteQuery<T>(string command, params SqlParameter[] args);
+        void Truncate(string tableName);
+        void BulkInsert<T>(string tableName, IEnumerable<T> entities, BulkInsertOptions options, Action<T> beforeItemPersist = null, Action<int> afterPagePersist = null);
+        void AlterIndexes(string tableName, string option);
     }
 }

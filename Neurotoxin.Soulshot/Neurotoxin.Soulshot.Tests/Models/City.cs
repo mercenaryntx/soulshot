@@ -1,15 +1,12 @@
-﻿using Neurotoxin.Soulshot.Annotations;
-
-namespace Neurotoxin.Soulshot.Tests.Models
+﻿namespace Neurotoxin.Soulshot.Tests.Models
 {
     public class City
     {
-        [Key]
-        public virtual int Id { get; set; }
-        public virtual string Name { get; set; }
-        public virtual Country Country { get; set; }
-        public virtual int PostalCode { get; set; }
-        public virtual int Lorem { get; set; }
-        public virtual int Ipsum { get; set; }
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public Country Country { get; set; }
+        public int PostalCode { get; set; }
+        public int Lorem { get; set; }
+        public int Ipsum { get; set; }
     }
 }

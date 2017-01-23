@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Linq.Expressions;
 
 namespace Neurotoxin.Soulshot.Query
@@ -6,21 +7,15 @@ namespace Neurotoxin.Soulshot.Query
     public class ContainsExpression : Expression
     {
         public ColumnExpression Column { get; set; }
-        public Expression Content { get; set; }
+        public IEnumerable Content { get; set; }
+        public bool IsNot { get; set; }
+        public override ExpressionType NodeType => ExpressionType.AndAlso;
+        public override Type Type => typeof (bool);
 
         public ContainsExpression(ColumnExpression column, IEnumerable enumerable)
         {
             Column = column;
-            foreach (var value in enumerable)
-            {
-                AddContent(Constant(value));
-            }
+            Content = enumerable;
         }
-
-        public void AddContent(Expression content)
-        {
-            Content = Content == null ? content : new ListingExpression(Content, content);
-        }
-
     }
 }

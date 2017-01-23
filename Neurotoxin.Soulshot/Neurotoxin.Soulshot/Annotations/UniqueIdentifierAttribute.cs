@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class UniqueIdentifierAttribute : ColumnTypeAttribute
+    public class UniqueIdentifierAttribute : ColumnAttribute
     {
         public UniqueIdentifierAttribute() : base("uniqueidentifier")
         {

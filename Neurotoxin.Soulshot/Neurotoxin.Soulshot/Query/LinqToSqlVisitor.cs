@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
@@ -8,180 +10,220 @@ using System.Reflection;
 using System.Text;
 using Neurotoxin.Soulshot.Annotations;
 using Neurotoxin.Soulshot.Extensions;
+using PetaPoco;
 
 namespace Neurotoxin.Soulshot.Query
 {
-    public class LinqToSqlVisitor : ExpressionVisitor
+    public abstract class LinqToSqlVisitor<TExpression> : ExpressionVisitor
     {
-        private SelectExpression _select;
-        private UpdateExpression _update;
-        private Expression _from;
-        private Expression _where;
-        private OrderByExpression _orderBy;
-        private Expression _ofType;
+        private readonly Dictionary<Type, TableExpression> _typeTableMapping = new Dictionary<Type, TableExpression>();
+        protected TableHint TableHint { get; }
+        protected TableExpression From => _typeTableMapping.First().Value;
+        protected Type EntityType { get; }
+        protected SelectExpression Select { get; set; }
+        protected UpdateExpression Update { get; set; }
+        protected Expression Where { get; private set; }
+        protected OrderByExpression OrderBy { get; private set; }
+        protected List<JoinExpression> Join { get; private set; }
 
-        private readonly IDbSet _dbSet;
-        private readonly Type _targetExpression;
-
-//        private readonly Dictionary<KeyValuePair<string, IDbSet>, TableExpression> _from = new Dictionary<KeyValuePair<string, IDbSet>, TableExpression>();
-
-        public LinqToSqlVisitor(IDbSet dbSet, Type targetExpression)
+        protected LinqToSqlVisitor(Type entityType, TableHint tableHint = TableHint.None)
         {
-            _dbSet = dbSet;
-            _targetExpression = targetExpression;
-            //GetTable(dbSet, null);
+            EntityType = entityType;
+            TableHint = tableHint;
+            MapType(EntityType);
         }
 
-        public SqlExpression GetResult()
+        public SqlExpression GetSqlExpression()
         {
-            if (_ofType != null) _where = _where == null ? _ofType : new WhereExpression(_where, _ofType);
-            if (_where != null && !(_where is WhereExpression)) _where = new WhereExpression(_where, null);
+            if (Where != null && !(Where is WhereExpression)) Where = new WhereExpression(Where, null);
+            return GetSqlExpressionInner();
+        }
 
-            if (_targetExpression == typeof(SelectExpression))
+        public string ToSqlString(Expression expression, ParameterizedQueryMode mode = ParameterizedQueryMode.ParameterizedQuery)
+        {
+            var visitor = new SqlCommandTextVisitor(mode);
+            try
             {
-                var select = _select ?? new SelectExpression();
-                if (select.Selection == null)
+                if (expression != null) Visit(expression);
+                visitor.Visit(GetSqlExpression());
+                if (visitor.Errors.Any()) throw new AggregateException("Incorrect SQL syntax: " + visitor.CommandText, visitor.Errors);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidExpressionException("Expression cannot be transformed to SQL: " + expression, ex);
+            }
+            return visitor.CommandText;
+        }
+
+        protected virtual SqlExpression GetSqlExpressionInner()
+        {
+            throw new NotSupportedException("Invalid target expression: " + typeof(TExpression));
+        }
+
+        private TableExpression GetFrom(Expression node)
+        {
+            var constExpr = node as ConstantExpression;
+            if (constExpr != null)
+            {
+                var table = constExpr.Value as ITable;
+                if (table != null) return MapType(table.ElementType);
+
+                var queryable = constExpr.Value as IQueryable;
+                if (queryable != null && queryable.Expression == node) throw new NotSupportedException("Enumerator data sources are not supported. Possible Enumerable to Queryable conversion occured.");
+            }
+
+            var methodCallExpr = node as MethodCallExpression;
+            return methodCallExpr != null ? GetFrom(methodCallExpr.Arguments[0]) : null;
+        }
+
+        private TableExpression MapType(Type type)
+        {
+            if (!_typeTableMapping.ContainsKey(type))
+            {
+                var table = type.GetCustomAttribute<TableAttribute>() ?? new TableAttribute(type.Name);
+                var expression = new TableExpression(type, table, $"t{_typeTableMapping.Count}")
                 {
-                    SelectAll(_dbSet, null, select, string.Empty);
-                }
-                if (select.From == null) select.From = GetFrom();
-                select.AddWhere(_where);
-                select.OrderBy = _orderBy;
-                return select;
+                    TableHint = TableHint
+                };
+                _typeTableMapping.Add(type, expression);
             }
-            if (_targetExpression == typeof(DeleteExpression))
-            {
-                var from = GetFrom();
-                if (from is ListingExpression) throw new NotSupportedException("Multiple from is not supported in case of Delete");
-                return new DeleteExpression(from) { Where = _where };
-            }
-            
-            if (_targetExpression == typeof(UpdateExpression))
-            {
-                //if (_update == null || _update.Set == null) throw new Exception("Update statement is missing.");
-                if (_update == null) _update = new UpdateExpression();
-                if (_update.Target == null) _update.Target = GetFrom();
-                _update.AddWhere(_where);
-                return _update;
-            }
-
-            throw new NotSupportedException("Invalid target expression: " + _targetExpression);
+            return _typeTableMapping[type];
         }
 
-        //TODO: detect loops
-        //TODO: identify already added froms
-        private void SelectAll(IDbSet dbSet, string memberName, SelectExpression select, string asPrefix)
+        public override Expression Visit(Expression node)
         {
-            //var table = GetTable(dbSet, memberName);
-            var table = new TableExpression(dbSet.Table);
-            foreach (var column in dbSet.Columns)
-            {
-                var expression = column.ToColumnExpression(table);
-                expression.As = asPrefix + column.ColumnName;
-                select.AddSelection(expression);
-                //if (column.ReferenceTable != null)
-                //{
-                //    var target = _dbSet.Context.GetDbSet(column.ReferenceTable.BaseType);
-                //    var targetTable = GetTable(target, column.PropertyName);
-                //    var fk = target.PrimaryKey.ToColumnExpression(targetTable.Alias);
-                //    select.AddWhere(Expression.MakeBinary(ExpressionType.Equal, column.ToColumnExpression(table.Alias, fk.Type), fk));
-                //    SelectAll(target, column.PropertyName, select, string.Format("{0}{1}.", asPrefix, column.ColumnName));
-                //}
-            }
-        }
+            var nestedQueryExpresion = node as NestedQueryExpression;
+            if (nestedQueryExpresion != null) return new NoOpExpression(nestedQueryExpresion.Type);
 
-        private Expression GetFrom()
-        {
-            Expression from = null;
-            //foreach (Expression expression in _from.Values)
-            //{                
-            //    from = from == null ? expression : new ListingExpression(from, expression);
-            //}
-            return from ?? new TableExpression(_dbSet.Table, "t0");
+            return base.Visit(node);
         }
 
         protected override Expression VisitLambda<T>(Expression<T> node)
         {
-            if (_targetExpression == typeof (DeleteExpression))
+            if (typeof(TExpression) == typeof (DeleteExpression))
             {
-                _where = BuildExpression(node);
+                Where = BuildExpression(node);
             }
             return base.VisitLambda(node);
         }
 
         protected override Expression VisitMethodCall(MethodCallExpression node)
         {
+            var from = GetFrom(node.Arguments[0]);
+
             var expression = node.Arguments.Count > 1 ? BuildExpression(node.Arguments[1]) : null;
             switch (node.Method.Name)
             {
-                case "Where":
-                case "Single":
-                case "SingleOrDefault":
-                case "StartsWith":
-                case "EndsWith":
-                    _where = _where == null ? expression : new WhereExpression(_where, expression);
+                case MethodNames.Where:
+                case MethodNames.StartsWith:
+                case MethodNames.EndsWith:
+                    AddWhere(expression);
                     break;
-                case "Select":
-                    if (_select == null) _select = new SelectExpression();
-                    _select.AddSelection(expression);
+                case MethodNames.In:
+                case MethodNames.NotIn:
+                    var inExpression = new InExpression(expression, (NestedQueryExpression)node.Arguments[2], node.Method.Name == "NotIn");
+                    AddWhere(inExpression);
                     break;
-                case "Update":
-                    Debugger.Break();
-                    if (_update == null) _update = new UpdateExpression();
-                    _update.AddSet(expression);
+                case MethodNames.Select:
+                    if (Select == null) Select = new SelectExpression { From = from };
+                    Select.AddSelection(expression);
                     break;
-                case "Count":
-                    _select = new SelectExpression {Selection = new CountExpression()};
-                    _where = _where == null ? expression : new WhereExpression(_where, expression);
+                case MethodNames.Update:
+                    if (Update == null) Update = new UpdateExpression();
+                    Update.AddSet(expression);
                     break;
-                case "Max":
-                    _select = new SelectExpression { Selection = new MaxExpression(expression) };
-                    break;
-                case "Any":
-                    _select = new SelectExpression { Selection = new CountExpression() };
-                    _where = _where == null ? expression : new WhereExpression(_where, expression);
-                    break;
-                case "First":
-                case "FirstOrDefault":
-                    if (_select == null) _select = new SelectExpression();
-                    _select.Top = Expression.Constant(1);
-                    _where = _where == null ? expression : new WhereExpression(_where, expression);
-                    break;
-                case "Take":
-                    if (_select == null) _select = new SelectExpression();
-                    _select.Top = node.Arguments[1];
-                    break;
-                case "OrderBy":
-                case "ThenBy":
-                    if (_orderBy == null) _orderBy = new OrderByExpression();
-                    _orderBy.AddColumn(expression, ListSortDirection.Ascending);
-                    break;
-                case "ThenByDescending":
-                case "OrderByDescending":
-                    if (_orderBy == null) _orderBy = new OrderByExpression();
-                    _orderBy.AddColumn(expression, ListSortDirection.Descending);
-                    break;
-                case "OfType":
-                    if (_ofType == null)
+                case MethodNames.Count:
+                    Select = new SelectExpression
                     {
-                        var constantExpression = expression as ConstantExpression;
-                        var param = constantExpression == null ? node.Method.ReturnType.GetGenericArguments()[0] : constantExpression.Value;
-                        var types = _dbSet.GetDiscriminatorValues((Type)param);
-                        if (types != null) _ofType = new ContainsExpression(new ColumnExpression("Discriminator"), types.Cast<Type>().Select(t => t.FullName));
+                        Selection = new CountExpression(),
+                        From = from
+                    };
+                    AddWhere(expression);
+                    break;
+                case MethodNames.Max:
+                    Select = new SelectExpression
+                    {
+                        Selection = new MaxExpression(expression),
+                        From = from
+                    };
+                    break;
+                case MethodNames.Any:
+                    Select = new SelectExpression
+                    {
+                        Selection = new CountExpression(),
+                        From = from
+                    };
+                    AddWhere(expression);
+                    break;
+                case MethodNames.First:
+                case MethodNames.FirstOrDefault:
+                case MethodNames.Single:
+                case MethodNames.SingleOrDefault:
+                    if (Select == null) Select = new SelectExpression { From = from };
+                    Select.Top = Expression.Constant(node.Method.Name.StartsWith(MethodNames.First) ? 1 : 2);
+                    AddWhere(expression);
+                    break;
+                case MethodNames.Take:
+                    if (Select == null) Select = new SelectExpression { From = from, Top = node.Arguments[1] };
+                    break;
+                case MethodNames.OrderBy:
+                case MethodNames.ThenBy:
+                    if (OrderBy == null) OrderBy = new OrderByExpression();
+                    OrderBy.AddColumn(expression, ListSortDirection.Ascending);
+                    break;
+                case MethodNames.ThenByDescending:
+                case MethodNames.OrderByDescending:
+                    if (OrderBy == null) OrderBy = new OrderByExpression();
+                    OrderBy.AddColumn(expression, ListSortDirection.Descending);
+                    break;
+                case MethodNames.Contains:
+                    break;
+                case MethodNames.Distinct:
+                    if (Select == null) Select = new SelectExpression { From = from, Distinct = true };
+                    break;
+                case MethodNames.Skip:
+                case MethodNames.AssignNewValue:
+                    throw new NotImplementedException();
+                case MethodNames.Join:
+                    if (Select == null) Select = new SelectExpression { From = from };
+                    if (Join == null) Join = new List<JoinExpression>();
+                    var on = GetFrom(node.Arguments[1]);
+                    var join = new JoinExpression(JoinType.Inner, on);
+                    var left = BuildExpression(node.Arguments[2]);
+                    var right = BuildExpression(node.Arguments[3]);
+                    join.Condition = Expression.MakeBinary(ExpressionType.Equal, left, right);
+                    var returnType = ((LambdaExpression)((UnaryExpression)node.Arguments[4]).Operand).ReturnType;
+                    var selectionTable = _typeTableMapping[returnType];
+                    Select.Selection = new AsteriskExpression(selectionTable);
+                    Join.Add(join);
+                    break;
+                case MethodNames.OfType:
+                    if (from.Table.MappingStrategy == MappingStrategy.TablePerHierarchy)
+                    {
+                        if (Select == null) Select = new SelectExpression { From = from };
+                        var filterType = node.Arguments.Count > 1 &&
+                                          node.Arguments[1].NodeType == ExpressionType.Constant &&
+                                          typeof(Type).IsAssignableFrom(node.Arguments[1].Type)
+                            ? (Type) ((ConstantExpression) node.Arguments[1]).Value
+                            : node.Method.ReturnType.GetGenericArguments()[0];
+                        var discriminatorColumn = new ColumnExpression(ColumnMapping.DiscriminatorColumnName, (TableExpression)Select.From, typeof(string));
+                        var constValue = Expression.Constant(filterType.FullName);
+                        //TODO: instead of exact match use CONTAINS(<all the derived types>)
+                        AddWhere(Expression.MakeBinary(ExpressionType.Equal, discriminatorColumn, constValue));
                     }
                     break;
-                case "Contains":
-                    break;
-                case "Skip":
-                case "AssignNewValue":
-                    throw new NotImplementedException();
                 default:
                     throw new NotSupportedException("Not supported method: " + node.Method.Name);
             }
             return base.VisitMethodCall(node);
         }
 
-        private Expression BuildExpression(Expression expression, Type desiredType = null)
+        protected void AddWhere(Expression expression)
+        {
+            Where = Where == null ? expression : new WhereExpression(Where, expression);
+        }
+
+        private Expression BuildExpression(Expression expression)
         {
             var binaryExpression = expression as BinaryExpression;
             if (binaryExpression != null)
@@ -194,18 +236,32 @@ namespace Neurotoxin.Soulshot.Query
                     right = CheckForShortLogicalExpression(right);
                 }
 
-                if (binaryExpression.NodeType == ExpressionType.Equal && left.Type != right.Type)
+                if ((binaryExpression.NodeType == ExpressionType.Equal 
+                  || binaryExpression.NodeType == ExpressionType.NotEqual) 
+                  && left.Type != right.Type)
                 {
-                    //HACK: sometimes the enums become int on the right side (no clue why :S)
-                    if (left.Type.IsEnum && right.Type == typeof(int))
+                    var constExpr = right as ConstantExpression;
+                    if (constExpr != null)
                     {
-                        var c = (ColumnExpression) left;
-                        left = new ColumnExpression(c.ColumnName.Name, c.Table, typeof(int));
+                        right = Expression.Constant(Convert.ChangeType(constExpr.Value, left.Type));
                     }
                     else
                     {
-                        Debugger.Break();
+                        constExpr = left as ConstantExpression;
+                        if (constExpr != null)
+                        {
+                            left = Expression.Constant(Convert.ChangeType(constExpr.Value, right.Type));
+                        }
+                        else
+                        {
+                            Debugger.Break();
+                        }
                     }
+                    //if (left.Type.IsAssignableFrom(right.Type))
+                    //{
+                    //    var c = (ColumnExpression) left;
+                    //    left = new ColumnExpression(c.ColumnName.Name, c.Table, left.Type.UnderlyingSystemType);
+                    //}
                 }
                 return Expression.MakeBinary(binaryExpression.NodeType, left, right);
             }
@@ -217,6 +273,12 @@ namespace Neurotoxin.Soulshot.Query
                 {
                     case ExpressionType.Not:
                         var operand = BuildExpression(unaryExpression.Operand);
+                        var containsExpression = operand as ContainsExpression;
+                        if (containsExpression != null)
+                        {
+                            containsExpression.IsNot = true;
+                            return containsExpression;
+                        }
                         return Expression.MakeBinary(ExpressionType.Equal, operand, Expression.Constant(false));
                     default:
                         return BuildExpression(unaryExpression.Operand);
@@ -230,62 +292,27 @@ namespace Neurotoxin.Soulshot.Query
             if (memberExpression != null)
             {
                 var constValue = GetConstantValue(memberExpression);
-                if (constValue != null) return Expression.Constant(constValue);
-
-                var e = memberExpression;
-
-                if (e.Member.Name == "TimeOfDay" && e.Member.DeclaringType == typeof(DateTime))
+                //TODO: what if const value is NULL?!
+                if (constValue != null) return Expression.Constant(constValue, memberExpression.Type);
+                switch (memberExpression.Member.MemberType)
                 {
-                    e = e.Expression as MemberExpression;
-                    var column = _dbSet.Columns.Single(c => c.DescribesProperty(e.Member));
-                    var pi = e.Member as PropertyInfo;
-                    return new ConvertExpression(new TimeAttribute(), column.ToColumnExpression(new TableExpression(_dbSet.Table), pi.PropertyType), typeof(TimeSpan));
+                    case MemberTypes.Field:
+                        var fi = (FieldInfo)memberExpression.Member;
+                        Debugger.Break();
+                        throw new NotSupportedException("Fields are not supported for column mapping");
+                    case MemberTypes.Property:
+                        //TODO: support recurring member access expression, check if memberExpression.Expression is another member expression
+                        var pi = (PropertyInfo)memberExpression.Member;
+                        if (_typeTableMapping.ContainsKey(pi.DeclaringType))
+                        {
+                            var type = pi.PropertyType;
+                            var columnName = pi.GetCustomAttribute<ColumnAttribute>()?.Name ?? pi.Name;
+                            return new ColumnExpression(columnName, _typeTableMapping[pi.DeclaringType], type);
+                        }
+                        throw new NotSupportedException("Unknown entity type: " + pi.DeclaringType.FullName);
+                    default:
+                        throw new NotSupportedException("Not supported membertype: " + memberExpression.Member.MemberType);
                 }
-                else
-                {
-                    var column = _dbSet.Columns.Single(c => c.DescribesProperty(e.Member));
-                    var pi = e.Member as PropertyInfo;
-                    var type = pi.PropertyType;
-                    return column.ToColumnExpression(new TableExpression(_dbSet.Table), type);
-                }
-
-                //var stack = new Stack<IDbSet>();
-                //var p = new Stack<string>();
-                //do
-                //{
-                //    if (stack.Count > 0) p.Push(e.Member.Name);
-                //    stack.Push(_dbSet.Context.GetDbSet(e.Member.DeclaringType));
-                //    e = e.Expression as MemberExpression;
-                //} 
-                //while (e != null);
-
-                //var a = new StringBuilder();
-                //Expression from = null;
-                //IDbSet dbSet = null;
-                //IDbSet prev = null;
-                //while (stack.Count > 0)
-                //{
-                //    dbSet = stack.Pop();
-                //    var t = new TableExpression(dbSet.Table);
-                //    if (from == null)
-                //    {
-                //        from = t;
-                //    }
-                //    else
-                //    {
-                //        var join = new JoinExpression(JoinType.Inner, t);
-                //        join.Condition = Expression.MakeBinary(ExpressionType.Equal, prev.Columns.Single(c => c.PropertyName == p.Peek()).ToColumnExpression(), dbSet.PrimaryKey.ToColumnExpression(t));
-                //        from = Expression.MakeBinary(ExpressionType.Default, from, join);
-                //    }
-                //    prev = dbSet;
-
-                //    //t = GetTable(dbSet, a.Length == 0 ? null : a.ToString());
-                //    if (stack.Count == 0) continue;
-                //    if (a.Length != 0) a.Append('.');
-                //    var propertyName = p.Pop();
-                //    a.Append(propertyName);
-
-                //}
             }
 
             var constantExpression = expression as ConstantExpression;
@@ -302,13 +329,13 @@ namespace Neurotoxin.Soulshot.Query
 
                         return BuildContainsExpression(methodCallExpression);
                     case "StartsWith":
-                        return BuildLikeExpression(methodCallExpression, true, false);
-                    case "EndsWith":
                         return BuildLikeExpression(methodCallExpression, false, true);
+                    case "EndsWith":
+                        return BuildLikeExpression(methodCallExpression, true, false);
                     case "AssignNewValue":
                         return BuildSetExpression(methodCallExpression);
                     default:
-                        throw new NotSupportedException(methodCallExpression.Method.Name);
+                        throw new NotSupportedException("Not supported method call: " + methodCallExpression.Method.Name);
                 }
             }
 
@@ -318,7 +345,7 @@ namespace Neurotoxin.Soulshot.Query
             var sqlPartExpression = expression as SqlPartExpression;
             if (sqlPartExpression != null) return expression;
 
-            throw new NotSupportedException(expression.GetType().Name);
+            throw new NotSupportedException("Not supported expression type: " + expression.GetType().Name);
         }
 
         private ContainsExpression BuildContainsExpression(MethodCallExpression methodCallExpression)
@@ -327,10 +354,7 @@ namespace Neurotoxin.Soulshot.Query
             var enumerable = constant.Value as IEnumerable;
             if (enumerable == null) throw new NotSupportedException("Invalid type: " + constant.Value.GetType());
 
-            var containsExpression = new ContainsExpression((ColumnExpression) BuildExpression(methodCallExpression.Arguments[1]),
-                enumerable
-            );
-
+            var containsExpression = new ContainsExpression((ColumnExpression) BuildExpression(methodCallExpression.Arguments[1]), enumerable);
             return containsExpression;
         }
 
@@ -384,16 +408,9 @@ namespace Neurotoxin.Soulshot.Query
                 : node;
         }
 
-        //private TableExpression GetTable(IDbSet dbSet, string memberName)
-        //{
-        //    var key = new KeyValuePair<string, IDbSet>(memberName, dbSet);
-        //    if (!_from.ContainsKey(key))
-        //    {
-        //        var a = "t" + _from.Count;
-        //        _from.Add(key, new TableExpression(dbSet.Table, a));
-        //    }
-
-        //    return _from[key];
-        //}
+        protected ColumnMappingCollection GetColumnMappings()
+        {
+            return EntityType.GetColumnMappings();
+        }
     }
 }

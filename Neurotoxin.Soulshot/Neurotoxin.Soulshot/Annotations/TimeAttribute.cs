@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class TimeAttribute : ColumnTypeAttribute
+    public class TimeAttribute : ColumnAttribute
     {
         public TimeAttribute() : base("time")
         {

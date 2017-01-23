@@ -4,7 +4,7 @@ namespace Neurotoxin.Soulshot.Query
 {
     public class JoinExpression : Expression
     {
-        public TableExpression Table { get; set; }
+        public TableExpression Table { get; }
         public JoinType JoinType { get; private set; }
         public Expression Condition { get; set; }
 

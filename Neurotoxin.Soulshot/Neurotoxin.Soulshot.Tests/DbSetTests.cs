@@ -1,202 +1,19 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data.Spatial;
 using System.Diagnostics;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Neurotoxin.Soulshot.Annotations;
-using Neurotoxin.Soulshot.Tests.Models;
-using TestContext = Neurotoxin.Soulshot.Tests.Models.TestContext;
 
 namespace Neurotoxin.Soulshot.Tests
 {
     [TestClass]
     public class DbSetTests
     {
-        [TestMethod]
-        public void ColumnMapping()
-        {
-            var table = new TableAttribute("Lorem", "ipsum");
-            var mapper = new ColumnMapper(null);
-            var columns = mapper.Map<EntityBase>(table);
-
-            Assert.IsTrue(columns.All(c => c.TableName == "Lorem" && c.TableSchema == "ipsum"));
-
-            var discriminator = columns[0];
-            Assert.AreEqual(discriminator.ColumnName, ColumnMapper.DiscriminatorColumnName);
-            Assert.AreEqual(discriminator.ColumnType, "nvarchar(255)");
-            Assert.IsNull(discriminator.DeclaringTypes);
-            Assert.IsNull(discriminator.PropertyName);
-
-            /* EntityBase */
-            var seqEntityBase = new List<Type> { typeof (EntityBase) };
-
-            var id = columns[1];
-            Assert.AreEqual(id.ColumnName, "Id");
-            Assert.AreEqual(id.ColumnType, "int");
-            Assert.IsTrue(id.DeclaringTypes.SequenceEqual(seqEntityBase));
-            Assert.AreEqual(id.PropertyName, "Id");
-
-            var entityId = columns[2];
-            Assert.AreEqual(entityId.ColumnName, "EntityId");
-            Assert.AreEqual(entityId.ColumnType, "uniqueidentifier");
-            Assert.IsTrue(entityId.DeclaringTypes.SequenceEqual(seqEntityBase));
-            Assert.AreEqual(entityId.PropertyName, "EntityId");
-
-            var name = columns[3];
-            Assert.AreEqual(name.ColumnName, "Name");
-            Assert.AreEqual(name.ColumnType, "nvarchar(max)");
-            Assert.IsTrue(name.DeclaringTypes.SequenceEqual(seqEntityBase));
-            Assert.AreEqual(name.PropertyName, "Name");
-
-            var date = columns[4];
-            Assert.AreEqual(date.ColumnName, "Date");
-            Assert.AreEqual(date.ColumnType, "datetime2");
-            Assert.IsTrue(date.DeclaringTypes.SequenceEqual(seqEntityBase));
-            Assert.AreEqual(date.PropertyName, "Date");
-
-            /* Class A */
-            var seqClassA = new List<Type> { typeof(ClassA) };
-            var seqClassAB = new List<Type> { typeof(ClassA), typeof(ClassB) };
-
-            var number1 = columns[5];
-            Assert.AreEqual(number1.ColumnName, "NumberOfSomething");
-            Assert.AreEqual(number1.ColumnType, "int");
-            Assert.IsTrue(number1.DeclaringTypes.SequenceEqual(seqClassAB));
-            Assert.AreEqual(number1.PropertyName, "NumberOfSomething");
-
-            var createdOn = columns[6];
-            Assert.AreEqual(createdOn.ColumnName, "CreatedOn");
-            Assert.AreEqual(createdOn.ColumnType, "datetime2");
-            Assert.IsTrue(createdOn.DeclaringTypes.SequenceEqual(seqClassA));
-            Assert.AreEqual(createdOn.PropertyName, "CreatedOn");
-
-            /* Class B */
-            var seqClassBC = new List<Type> { typeof(ClassB), typeof(ClassC) };
-
-            var text = columns[7];
-            Assert.AreEqual(text.ColumnName, "Text");
-            Assert.AreEqual(text.ColumnType, "nvarchar(max)");
-            Assert.IsTrue(text.DeclaringTypes.SequenceEqual(seqClassBC));
-            Assert.AreEqual(text.PropertyName, "Text");
-
-            /* Class D */
-            var seqClassD = new List<Type> { typeof(ClassD) };
-
-            var number2 = columns[8];
-            Assert.AreEqual(number2.ColumnName, "ClassDNumberOfSomething");
-            Assert.AreEqual(number2.ColumnType, "bigint");
-            Assert.IsTrue(number2.DeclaringTypes.SequenceEqual(seqClassD));
-            Assert.AreEqual(number2.PropertyName, "NumberOfSomething");
-
-            /* Class E */
-            var seqClassE = new List<Type> { typeof(ClassE) };
-
-            var lorem = columns[9];
-            Assert.AreEqual(lorem.ColumnName, "Lorem");
-            Assert.AreEqual(lorem.ColumnType, "nvarchar(max)");
-            Assert.IsTrue(lorem.DeclaringTypes.SequenceEqual(seqClassE));
-            Assert.AreEqual(lorem.PropertyName, "Lorem");
-
-            Assert.AreEqual(columns.Count(), 10);
-        }
-
-        [TestMethod]
-        public void WriteAndReadBack()
-        {
-            var sw = new Stopwatch();
-            sw.Start();
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                Console.WriteLine("Init " + sw.Elapsed);
-                sw.Restart();
-
-                var guid = Guid.NewGuid();
-                var newEntity = new ClassD
-                {
-                    EntityId = guid,
-                    Name = "Lorem ipsum",
-                    NumberOfSomething = 5
-                };
-                context.TestTable.Add(newEntity);
-                Console.WriteLine("Add " + sw.Elapsed);
-                sw.Restart();
-                context.SaveChanges();
-                Console.WriteLine("Persist " + sw.Elapsed);
-                sw.Restart();
-
-                var storedEntity = context.TestTable.SingleOrDefault(e => e.EntityId == guid);
-                Console.WriteLine("Select " + sw.Elapsed);
-
-                Assert.IsInstanceOfType(storedEntity, typeof(ClassD));
-
-                var classD = (ClassD) storedEntity;
-                Assert.AreEqual(classD.Name, newEntity.Name);
-                Assert.AreEqual(classD.NumberOfSomething, newEntity.NumberOfSomething);
-                Assert.AreNotEqual(classD.Id, 0);
-            }
-        }
-
-        [TestMethod]
-        public void InsertInTransactionSpeed()
-        {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                var sw = new Stopwatch();
-                sw.Start();
-                for (var i = 0; i < 100; i++)
-                {
-                    var guid = Guid.NewGuid();
-                    var newEntity = new ClassD
-                    {
-                        EntityId = guid,
-                        Name = "Lorem ipsum",
-                        NumberOfSomething = 5
-                    };
-                    context.TestTable.Add(newEntity);
-                    Console.WriteLine("Add " + sw.Elapsed);
-                    sw.Restart();
-                }
-                context.SaveChanges();
-                Console.WriteLine("Persist " + sw.Elapsed);
-                sw.Restart();
-            }
-        }
-
-        [TestMethod]
-        public void InsertNotInTransactionSpeed()
-        {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                var sum = new Stopwatch();
-                sum.Start();
-                var sw = new Stopwatch();
-                sw.Start();
-                for (var i = 0; i < 100; i++)
-                {
-                    var guid = Guid.NewGuid();
-                    var newEntity = new ClassD
-                    {
-                        EntityId = guid,
-                        Name = "Lorem ipsum",
-                        NumberOfSomething = 5
-                    };
-                    context.TestTable.Add(newEntity);
-                    Console.WriteLine("Add " + sw.Elapsed);
-                    sw.Restart();
-                    context.SaveChanges();
-                    Console.WriteLine("Persist " + sw.Elapsed);
-                    sw.Restart();
-                }
-                Console.WriteLine("-----");
-                Console.WriteLine(sum.Elapsed);
-            }
-        }
+        private readonly string _cnstr = "Server=.;Initial Catalog=TestDb;Integrated security=True;";
 
         [TestMethod]
         public void ReadAll()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -208,7 +25,7 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void Read100()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -221,7 +38,7 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void Count()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -233,7 +50,7 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectScalarList()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -245,11 +62,11 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectGreaterThan()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
-                var c = context.TestTable.Where(e => e.Id > 15000).ToList();
+                var c = context.TestTable.Where(e => e.Id > 400).ToList();
                 Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
             }
         }
@@ -257,12 +74,8 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectGreaterThanVariable()
         {
-            X(15000);
-        }
-
-        private void X(int x)
-        {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            var x = 400;
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -274,11 +87,11 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectContains()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
-                var ids = new[] {100, 200, 300, 400, 500};
+                var ids = new[] { 100, 200, 300, 400, 500 };
                 var c = context.TestTable.Where(e => ids.Contains(e.Id)).ToList();
                 Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
             }
@@ -287,7 +100,7 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectOr()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -299,7 +112,7 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectAndOr()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -311,7 +124,7 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectStartsWith()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -323,7 +136,7 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectEndsWith()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -335,7 +148,7 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectStringContains()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -347,7 +160,7 @@ namespace Neurotoxin.Soulshot.Tests
         [TestMethod]
         public void SelectOrderBy()
         {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+            using (var context = new TestContext(_cnstr))
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -356,158 +169,212 @@ namespace Neurotoxin.Soulshot.Tests
             }
         }
 
-        [TestMethod]
-        [Microsoft.VisualStudio.TestTools.UnitTesting.Ignore]
-        public void ForeignKeysWriteAndReadBack()
-        {
-            var sw = new Stopwatch();
-            sw.Start();
-            using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                Console.WriteLine("Init: " + sw.Elapsed);
-                sw.Restart();
-                var hungary = new Country { Name = "Hungary" };
-                var address = new Address
-                {
-                    Street = "Futo utca",
-                    CurrentCity = new City { Name = "Budapest", Country = hungary },
-                    Hometown = new City { Name = "Mosonmagyarovar", Country = hungary }
-                };
-                context.Address.Add(address);
-                context.SaveChanges();
-                Console.WriteLine("Insert: " + sw.Elapsed);
-                
-                sw.Restart();
-                var stored = context.Address.First(a => a.Street == "Futo utca");
-                Console.WriteLine("Select: " + sw.Elapsed);
-
-                Assert.AreNotEqual(stored.Id, 0);
-                Assert.AreEqual(address.Street, stored.Street);
-                Assert.AreNotEqual(stored.CurrentCity.Id, 0);
-                Assert.AreEqual(address.CurrentCity.Name, stored.CurrentCity.Name);
-                Assert.AreNotEqual(stored.Hometown.Id, 0);
-                Assert.AreEqual(address.Hometown.Name, stored.Hometown.Name);
-            }
-        }
-
         //[TestMethod]
-        //public void CascadeDelete()
+        //[Microsoft.VisualStudio.TestTools.UnitTesting.Ignore]
+        //public void ForeignKeysWriteAndReadBack()
         //{
         //    var sw = new Stopwatch();
         //    sw.Start();
-        //    using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
+        //    using (var context = new TestContext2(_cnstr))
+        //    {
+        //        Console.WriteLine("Init: " + sw.Elapsed);
+        //        sw.Restart();
+        //        var hungary = new Country { Name = "Hungary" };
+        //        var address = new Address
+        //        {
+        //            Street = "Futo utca",
+        //            CurrentCity = new City { Name = "Budapest", Country = hungary },
+        //            Hometown = new City { Name = "Mosonmagyarovar", Country = hungary }
+        //        };
+        //        context.Address.Add(address);
+        //        context.SaveChanges();
+        //        Console.WriteLine("Insert: " + sw.Elapsed);
+
+        //        sw.Restart();
+        //        var stored = context.Address.First(a => a.Street == "Futo utca");
+        //        Console.WriteLine("Select: " + sw.Elapsed);
+
+        //        Assert.AreNotEqual(stored.Id, 0);
+        //        Assert.AreEqual(address.Street, stored.Street);
+        //        Assert.AreNotEqual(stored.CurrentCity.Id, 0);
+        //        Assert.AreEqual(address.CurrentCity.Name, stored.CurrentCity.Name);
+        //        Assert.AreNotEqual(stored.Hometown.Id, 0);
+        //        Assert.AreEqual(address.Hometown.Name, stored.Hometown.Name);
+        //    }
+        //}
+
+        ////[TestMethod]
+        ////public void CascadeDelete()
+        ////{
+        ////    var sw = new Stopwatch();
+        ////    sw.Start();
+        ////    using (var context = new TestContext2(_cnstr))
+        ////    {
+        ////        Console.WriteLine("Init: " + sw.Elapsed);
+        ////        sw.Restart();
+
+        ////        context.Address.Remove(a => a.Street == "Futo utca");
+        ////        Console.WriteLine("Delete: " + sw.Elapsed);
+        ////    }            
+        ////}
+
+        //[TestMethod]
+        //[Microsoft.VisualStudio.TestTools.UnitTesting.Ignore]
+        //public void SelectByJoinedTableValue()
+        //{
+        //    var sw = new Stopwatch();
+        //    sw.Start();
+        //    using (var context = new TestContext2(_cnstr))
         //    {
         //        Console.WriteLine("Init: " + sw.Elapsed);
         //        sw.Restart();
 
-        //        context.Address.Remove(a => a.Street == "Futo utca");
-        //        Console.WriteLine("Delete: " + sw.Elapsed);
-        //    }            
+        //        var stored = context.Address.Where(a => a.CurrentCity.Country.Name == "Hungary" || a.Hometown.Country.Name == "Hungary").Select(a => a.Street).First();
+        //        Console.WriteLine("Select: " + sw.Elapsed);
+        //    }
         //}
 
-        [TestMethod]
-        [Microsoft.VisualStudio.TestTools.UnitTesting.Ignore]
-        public void SelectByJoinedTableValue()
-        {
-            var sw = new Stopwatch();
-            sw.Start();
-            using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                Console.WriteLine("Init: " + sw.Elapsed);
-                sw.Restart();
+        //[TestMethod]
+        //[Microsoft.VisualStudio.TestTools.UnitTesting.Ignore]
+        //public void OneToMany()
+        //{
+        //    var sw = new Stopwatch();
+        //    sw.Start();
+        //    using (var context = new TestContext2(_cnstr))
+        //    {
+        //        Console.WriteLine("Init: " + sw.Elapsed);
+        //        sw.Restart();
+        //        var country = context.Countries.First(c => c.Name == "Hungary");
+        //        Console.WriteLine("Select: " + sw.Elapsed);
+        //    }
+        //}
 
-                var stored = context.Address.Where(a => a.CurrentCity.Country.Name == "Hungary" || a.Hometown.Country.Name == "Hungary").Select(a => a.Street).First();
-                Console.WriteLine("Select: " + sw.Elapsed);
-            }
-        }
+        //[TestMethod]
+        //[Microsoft.VisualStudio.TestTools.UnitTesting.Ignore]
+        //public void Update()
+        //{
+        //    using (var context = new TestContext(_cnstr))
+        //    {
+        //        var sw = new Stopwatch();
+        //        sw.Start();
+        //        //context.TestTable.Where(e => e.Id == 1).Update();
+        //        //Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
+        //    }
 
-        [TestMethod]
-        [Microsoft.VisualStudio.TestTools.UnitTesting.Ignore]
-        public void OneToMany()
-        {
-            var sw = new Stopwatch();
-            sw.Start();
-            using (var context = new TestContext2("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                Console.WriteLine("Init: " + sw.Elapsed);
-                sw.Restart();
-                var country = context.Countries.First(c => c.Name == "Hungary");
-                Console.WriteLine("Select: " + sw.Elapsed);
-            }
-        }
+        //}
 
-        [TestMethod]
-        [Microsoft.VisualStudio.TestTools.UnitTesting.Ignore]
-        public void Update()
-        {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                var sw = new Stopwatch();
-                sw.Start();
-                //context.TestTable.Where(e => e.Id == 1).Update();
-                //Console.WriteLine("Count {0}: {1}", c.Count, sw.Elapsed);
-            }
+        //[TestMethod]
+        //public void GetTimePart()
+        //{
+        //    using (var context = new TestContext(_cnstr))
+        //    {
+        //        var sw = new Stopwatch();
+        //        sw.Start();
+        //        var ts = new TimeSpan(10, 0, 0);
+        //        var c = context.TestTable.Count(e => e.Date.TimeOfDay > ts);
+        //        Console.WriteLine("Count {0}: {1}", c, sw.Elapsed);
+        //    }
+        //}
 
-        }
+        //[TestMethod]
+        //public void OnModelCreating()
+        //{
+        //    using (var context = new TestContext3(_cnstr))
+        //    {
+        //        var sw = new Stopwatch();
+        //        sw.Start();
+        //        var ts = new TimeSpan(10, 0, 0);
+        //        var c = context.Set<EntityBase>().Count(e => e.Date.TimeOfDay > ts);
+        //        Console.WriteLine("Count {0}: {1}", c, sw.Elapsed);
+        //    }
+        //}
 
-        [TestMethod]
-        public void GetTimePart()
-        {
-            using (var context = new TestContext("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                var sw = new Stopwatch();
-                sw.Start();
-                var ts = new TimeSpan(10, 0, 0);
-                var c = context.TestTable.Count(e => e.Date.TimeOfDay > ts);
-                Console.WriteLine("Count {0}: {1}", c, sw.Elapsed);
-            }
-        }
+        //[TestMethod]
+        //public void WriteAndReadBackWithCustomMapper()
+        //{
+        //    var sw = new Stopwatch();
+        //    sw.Start();
+        //    using (var context = new TestContext4(_cnstr))
+        //    {
+        //        Console.WriteLine("Init " + sw.Elapsed);
+        //        sw.Restart();
 
-        [TestMethod]
-        public void OnModelCreating()
-        {
-            using (var context = new TestContext3("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                var sw = new Stopwatch();
-                sw.Start();
-                var ts = new TimeSpan(10, 0, 0);
-                var c = context.Set<EntityBase>().Count(e => e.Date.TimeOfDay > ts);
-                Console.WriteLine("Count {0}: {1}", c, sw.Elapsed);
-            }
-        }
+        //        var guid = Guid.NewGuid();
+        //        var newEntity = new Sample
+        //        {
+        //            EntityId = guid,
+        //            Name = "Lorem ipsum",
+        //            Location = DbGeography.FromText("LINESTRING(-122.360 47.656, -122.343 47.656 )")
+        //        };
+        //        context.Sample.Add(newEntity);
+        //        Console.WriteLine("Add " + sw.Elapsed);
+        //        sw.Restart();
+        //        context.SaveChanges();
+        //        Console.WriteLine("Persist " + sw.Elapsed);
+        //        sw.Restart();
 
-        [TestMethod]
-        public void WriteAndReadBackWithCustomMapper()
-        {
-            var sw = new Stopwatch();
-            sw.Start();
-            using (var context = new TestContext4("Server=.;Initial Catalog=TestDb;Integrated security=True;"))
-            {
-                Console.WriteLine("Init " + sw.Elapsed);
-                sw.Restart();
+        //        var storedEntity = context.Sample.SingleOrDefault(e => e.EntityId == guid);
+        //        Console.WriteLine("Select " + sw.Elapsed);
 
-                var guid = Guid.NewGuid();
-                var newEntity = new Sample
-                {
-                    EntityId = guid,
-                    Name = "Lorem ipsum",
-                    Location = DbGeography.FromText("LINESTRING(-122.360 47.656, -122.343 47.656 )")
-                };
-                context.Sample.Add(newEntity);
-                Console.WriteLine("Add " + sw.Elapsed);
-                sw.Restart();
-                context.SaveChanges();
-                Console.WriteLine("Persist " + sw.Elapsed);
-                sw.Restart();
+        //        Assert.IsNotNull(storedEntity);
+        //        Assert.AreEqual(newEntity.Location.ToString(), storedEntity.Location.ToString());
+        //    }
+        //}
 
-                var storedEntity = context.Sample.SingleOrDefault(e => e.EntityId == guid);
-                Console.WriteLine("Select " + sw.Elapsed);
+        //[TestMethod]
+        //public void InsertInTransactionSpeed()
+        //{
+        //    using (var context = new TestContext(_cnstr))
+        //    {
+        //        var sw = new Stopwatch();
+        //        sw.Start();
+        //        for (var i = 0; i < 100; i++)
+        //        {
+        //            var guid = Guid.NewGuid();
+        //            var newEntity = new ClassD
+        //            {
+        //                EntityId = guid,
+        //                Name = "Lorem ipsum",
+        //                NumberOfSomething = 5
+        //            };
+        //            context.TestTable.Add(newEntity);
+        //            Console.WriteLine("Add " + sw.Elapsed);
+        //            sw.Restart();
+        //        }
+        //        context.SaveChanges();
+        //        Console.WriteLine("Persist " + sw.Elapsed);
+        //        sw.Restart();
+        //    }
+        //}
 
-                Assert.IsNotNull(storedEntity);
-                Assert.AreEqual(newEntity.Location.ToString(), storedEntity.Location.ToString());
-            }
-        }
-
-
+        //[TestMethod]
+        //public void InsertNotInTransactionSpeed()
+        //{
+        //    using (var context = new TestContext(_cnstr))
+        //    {
+        //        var sum = new Stopwatch();
+        //        sum.Start();
+        //        var sw = new Stopwatch();
+        //        sw.Start();
+        //        for (var i = 0; i < 100; i++)
+        //        {
+        //            var guid = Guid.NewGuid();
+        //            var newEntity = new ClassD
+        //            {
+        //                EntityId = guid,
+        //                Name = "Lorem ipsum",
+        //                NumberOfSomething = 5
+        //            };
+        //            context.TestTable.Add(newEntity);
+        //            Console.WriteLine("Add " + sw.Elapsed);
+        //            sw.Restart();
+        //            context.SaveChanges();
+        //            Console.WriteLine("Persist " + sw.Elapsed);
+        //            sw.Restart();
+        //        }
+        //        Console.WriteLine("-----");
+        //        Console.WriteLine(sum.Elapsed);
+        //    }
+        //}
     }
 }

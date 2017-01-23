@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class UnicodeCharacterVaryingAttribute : ColumnTypeAttribute
+    public class UnicodeCharacterVaryingAttribute : ColumnAttribute
     {
         public UnicodeCharacterVaryingAttribute() : base("nvarchar")
         {

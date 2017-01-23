@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class BinaryVaryingAttribute : ColumnTypeAttribute
+    public class BinaryVaryingAttribute : ColumnAttribute
     {
         public BinaryVaryingAttribute() : base("varbinary")
         {

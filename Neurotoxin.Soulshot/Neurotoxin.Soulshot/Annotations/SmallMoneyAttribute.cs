@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class SmallMoneyAttribute : ColumnTypeAttribute
+    public class SmallMoneyAttribute : ColumnAttribute
     {
         public SmallMoneyAttribute() : base("smallmoney")
         {

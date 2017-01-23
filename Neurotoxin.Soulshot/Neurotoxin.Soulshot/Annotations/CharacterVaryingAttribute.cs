@@ -1,6 +1,6 @@
 ﻿namespace Neurotoxin.Soulshot.Annotations
 {
-    public class CharacterVaryingAttribute : ColumnTypeAttribute
+    public class CharacterVaryingAttribute : ColumnAttribute
     {
         public CharacterVaryingAttribute() : base("varchar")
         {
